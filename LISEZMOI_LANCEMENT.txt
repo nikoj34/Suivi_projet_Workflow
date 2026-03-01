@@ -1,0 +1,22 @@
+========================================
+  SUIVI TRAVAUX — Lancement (toujours cloud)
+========================================
+
+Une installation unique, puis on ouvre l'app comme un logiciel :
+pas de lanceur, pas de terminal.
+
+• MAC ET PC (Windows)
+  Même utilisation sur tous les postes : ouvrir l’URL dans un navigateur
+  (Chrome, Edge, Firefox). Vous testez sur iMac, les PC utilisent la même URL.
+
+• INSTALLATION UNE FOIS (par la personne qui gère le projet)
+  Voir le fichier : INSTALLATION_UNIQUE.md
+  En résumé : firebase login, firebase deploy dans ce dossier.
+  L'app sera en ligne à l'URL indiquée (ex. https://cirad-suivi-projets.web.app).
+
+• UTILISATION QUOTIDIENNE (tout le monde)
+  Ouvrir dans le navigateur : https://cirad-suivi-projets.web.app
+  Ou créer un raccourci bureau / favori vers cette URL.
+  → Toujours en mode cloud (synchronisation Firestore). Aucun terminal.
+
+========================================

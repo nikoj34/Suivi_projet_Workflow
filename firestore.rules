@@ -1,0 +1,46 @@
+rules_version = '2';
+// Suivi Travaux : lecture/ecriture pour vos projets (ownerId) + projets sans champ ownerId (legacy).
+// Manager : voir et modifier aussi les projets de son équipe. Connexion par identifiant obligatoire.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /projects/{projectId} {
+      allow read: if request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && (
+          !('ownerId' in resource.data)
+          || resource.data.ownerId == null
+          || resource.data.ownerId == request.auth.uid
+          || (exists(/databases/$(database)/documents/managers/$(request.auth.uid))
+              && 'agentIds' in get(/databases/$(database)/documents/managers/$(request.auth.uid)).data
+              && resource.data.ownerId in get(/databases/$(database)/documents/managers/$(request.auth.uid)).data.agentIds)
+        );
+        
+      allow create: if request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && request.resource.data.ownerId == request.auth.uid;
+        
+      allow update, delete: if request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && (
+          !('ownerId' in resource.data)
+          || resource.data.ownerId == null
+          || resource.data.ownerId == request.auth.uid
+          || (exists(/databases/$(database)/documents/managers/$(request.auth.uid))
+              && 'agentIds' in get(/databases/$(database)/documents/managers/$(request.auth.uid)).data
+              && resource.data.ownerId in get(/databases/$(database)/documents/managers/$(request.auth.uid)).data.agentIds)
+        );
+    }
+
+    match /config/{docId} {
+      allow read, write: if request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+
+    match /managers/{managerId} {
+      allow read, write: if request.auth != null
+        && request.auth.token.firebase.sign_in_provider != 'anonymous'
+        && request.auth.uid == managerId;
+    }
+  }
+}
