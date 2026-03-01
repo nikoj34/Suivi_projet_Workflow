@@ -135,6 +135,16 @@ export default function App() {
     };
   }, [cloudAuth]);
 
+  /** Fallback : si l'icône reste "connecting" (orange) plus de 3 s, forcer le passage à "online" pour ne pas bloquer l'affichage. */
+  useEffect(() => {
+    if (cloudStatus !== 'connecting' || !cloudDb || !user || user.isAnonymous) return;
+    const fallbackId = setTimeout(() => {
+      setCloudStatus('online');
+      setLastSyncSuccessAt(Date.now());
+    }, 3000);
+    return () => clearTimeout(fallbackId);
+  }, [cloudStatus, cloudDb, user]);
+
   useEffect(() => {
     if (!user) return;
 
@@ -270,6 +280,8 @@ export default function App() {
       refresh();
       setEditing(null);
       setView('list');
+      setLastSyncSuccessAt(Date.now());
+      setCloudStatus('online');
     }).catch((err) => {
       setSaveError(err?.message || 'Erreur d\'enregistrement');
     });
@@ -290,6 +302,8 @@ export default function App() {
         else list.push(withOwnerProj);
         return list;
       });
+      setLastSyncSuccessAt(Date.now());
+      setCloudStatus('online');
     }).catch((err) => {
       setSaveError(err?.message || 'Erreur d\'enregistrement Firestore');
     });
@@ -313,7 +327,11 @@ export default function App() {
       setSaveError('Vous ne pouvez archiver que les opérations dont vous êtes propriétaire.');
       return;
     }
-    db.save({ ...p, status: 'archived', archivedAt: new Date().toISOString() }).then(() => refresh()).catch((err) => setSaveError(err?.message || 'Erreur d\'enregistrement'));
+    db.save({ ...p, status: 'archived', archivedAt: new Date().toISOString() }).then(() => {
+      refresh();
+      setLastSyncSuccessAt(Date.now());
+      setCloudStatus('online');
+    }).catch((err) => setSaveError(err?.message || 'Erreur d\'enregistrement'));
   };
   const handleRestore = (id) => {
     const p = projects.find((x) => x.id === id);
@@ -323,7 +341,11 @@ export default function App() {
       return;
     }
     const { archivedAt, ...rest } = p;
-    db.save({ ...rest, status: 'active' }).then(() => refresh()).catch((err) => setSaveError(err?.message || 'Erreur d\'enregistrement'));
+    db.save({ ...rest, status: 'active' }).then(() => {
+      refresh();
+      setLastSyncSuccessAt(Date.now());
+      setCloudStatus('online');
+    }).catch((err) => setSaveError(err?.message || 'Erreur d\'enregistrement'));
   };
   const handleNav = (v) => {
     if (v === 'table' || v === 'calendar') {
@@ -369,14 +391,24 @@ export default function App() {
       expenses: [],
       journal: [],
     };
-    db.save(copy).then(() => { refresh(); setEditing(copy); setView('edit'); }).catch((err) => setSaveError(err?.message || 'Erreur d\'enregistrement'));
+    db.save(copy).then(() => {
+      refresh();
+      setEditing(copy);
+      setView('edit');
+      setLastSyncSuccessAt(Date.now());
+      setCloudStatus('online');
+    }).catch((err) => setSaveError(err?.message || 'Erreur d\'enregistrement'));
   };
   const handleClaimUnclaimed = () => {
     const uid = user && user.uid;
     if (!uid || !cloudDb) return;
     const toClaim = projects.filter((p) => !p.ownerId);
     const promises = toClaim.map((p) => db.save({ ...p, ownerId: uid, ownerEmail: user.email || '' }));
-    Promise.all(promises).then(() => refresh()).catch((err) => setSaveError(err?.message || 'Erreur d\'enregistrement'));
+    Promise.all(promises).then(() => {
+      refresh();
+      setLastSyncSuccessAt(Date.now());
+      setCloudStatus('online');
+    }).catch((err) => setSaveError(err?.message || 'Erreur d\'enregistrement'));
   };
 
   const unclaimed = (projects || []).filter((p) => !p.ownerId);
