@@ -1,9 +1,10 @@
 import { useState, useMemo, useEffect } from 'react';
 import { getCloudAuth } from '../lib/firebase';
-import { BOARD_COLS, PRIORITIES } from '../lib/constants';
+import { BOARD_COLS, PRIORITIES, ESTIMATED_DURATION_OPTIONS } from '../lib/constants';
 import { today, isTaskArchived, addTaskLog, fmtDate, getPriority } from '../lib/utils';
 import ic from './icons';
 import ItemDetailPanel from './ItemDetailPanel';
+import TaskTagBadge from './TaskTagBadge';
 
 export default function BoardView({ projects, projectsForCreate, config, onSilentSave, onEditProject, managerAgentIds, openNewTaskModal, onClearedOpenNewTask, currentUid, managerAgentLabels }) {
   const [filterProj, setFilterProj] = useState('');
@@ -11,7 +12,8 @@ export default function BoardView({ projects, projectsForCreate, config, onSilen
   const [dragOver, setDragOver] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [newTask, setNewTask] = useState({
-    description: '', projId: 'general', assignee: '', tag: '', dueDate: '', priority: '', status: 'À faire',
+    description: '', projId: 'general', assignee: '', tag: '', dueDate: '', dueTime: '', priority: '', status: 'À faire',
+    estimatedDuration: 0, interlocuteur: '', urgent: false,
   });
   const [detailTask, setDetailTask] = useState(null);
 
@@ -39,6 +41,13 @@ export default function BoardView({ projects, projectsForCreate, config, onSilen
       const key = BOARD_COLS.some((c) => c.id === col) ? col : 'À faire';
       m[key].push(t);
     });
+    // Tri par échéance : plus proche (jour J) en haut, plus lointaine en bas, sans date en bas
+    const sortByDueDate = (a, b) => {
+      const da = a.dueDate || '9999-12-31';
+      const db = b.dueDate || '9999-12-31';
+      return da.localeCompare(db);
+    };
+    BOARD_COLS.forEach((c) => { if (m[c.id].length) m[c.id].sort(sortByDueDate); });
     return m;
   }, [allTasks]);
 
@@ -65,13 +74,17 @@ export default function BoardView({ projects, projectsForCreate, config, onSilen
       tag: newTask.tag,
       priority: newTask.priority,
       dueDate: newTask.dueDate,
+      dueTime: newTask.dueTime || '',
+      estimatedDuration: newTask.estimatedDuration !== undefined ? newTask.estimatedDuration : 0,
+      interlocuteur: newTask.interlocuteur || '',
+      urgent: !!newTask.urgent,
       statusChangedAt: nowStr,
       completedAt: newTask.status === 'Terminé' ? nowStr : null,
       history: [{ ts: nowStr, action: 'Créée', detail: 'Via Kanban' }],
     };
     onSilentSave({ ...proj, tasks: [...(proj.tasks || []), taskObj] });
     setShowModal(false);
-    setNewTask({ description: '', projId: '', assignee: '', tag: '', dueDate: '', priority: '', status: 'À faire' });
+    setNewTask({ description: '', projId: '', assignee: '', tag: '', dueDate: '', dueTime: '', priority: '', status: 'À faire', estimatedDuration: 0, interlocuteur: '', urgent: false });
   };
 
   const moveTask = (task, newStatus, opts = {}) => {
@@ -114,7 +127,7 @@ export default function BoardView({ projects, projectsForCreate, config, onSilen
 
   useEffect(() => {
     if (openNewTaskModal) {
-      setNewTask({ description: '', projId: filterProj || '', assignee: '', tag: '', dueDate: '', priority: '', status: 'À faire' });
+      setNewTask({ description: '', projId: filterProj || '', assignee: '', tag: '', dueDate: '', dueTime: '', priority: '', status: 'À faire', estimatedDuration: 0, interlocuteur: '', urgent: false });
       setShowModal(true);
       onClearedOpenNewTask?.();
     }
@@ -160,6 +173,9 @@ export default function BoardView({ projects, projectsForCreate, config, onSilen
                 {cards.map((task) => {
                   const prio = getPriority(task.priority);
                   const isPendingValidation = task.validation && task.validation.status === 'pending_manager';
+                  const hasPrio = task.priority && prio.id;
+                  const borderPrio = hasPrio ? prio.color : 'transparent';
+                  const bgPrio = hasPrio ? prio.bg : 'white';
                   return (
                     <div
                       key={task.id}
@@ -168,12 +184,24 @@ export default function BoardView({ projects, projectsForCreate, config, onSilen
                       onDragEnd={onDragEnd}
                       onClick={() => { const p = active.find((x) => x.id === task._projId) || { title: 'Général', tasks: [] }; setDetailTask({ projectId: task._projId, taskId: task.id }); }}
                       className="hover:shadow-md transition-shadow group relative overflow-hidden max-w-full w-full"
-                      style={{ background: 'white', border: '1px solid rgba(0,0,0,0.05)', borderRadius: 10, padding: 8, cursor: canDragTask(task) ? 'grab' : 'default' }}
+                      style={{
+                        background: bgPrio,
+                        border: '1px solid rgba(0,0,0,0.08)',
+                        borderLeftWidth: hasPrio ? 4 : 1,
+                        borderLeftColor: borderPrio,
+                        borderRadius: 10,
+                        padding: 8,
+                        cursor: canDragTask(task) ? 'grab' : 'default',
+                      }}
                     >
                       {isPendingValidation && <div className="absolute top-1.5 right-1.5 flex items-center gap-1" style={{ fontSize: 8, fontWeight: 900, color: '#6366f1', background: 'rgba(99,102,241,0.12)', padding: '2px 6px', borderRadius: 6 }}>⏳ En validation</div>}
                       <div className="flex justify-between items-start mb-1.5 min-w-0">
                         <span className="truncate max-w-full min-w-0 inline-block text-[7px] font-black uppercase rounded px-1.5 py-0.5" style={{ color: col.color, background: col.accent }}>{task._projTitle || 'Général'}</span>
-                        {task.priority && <div style={{ width: 3, height: 10, borderRadius: 2, background: prio.color }} className="flex-shrink-0" />}
+                        {hasPrio && (
+                          <span className="text-[7px] font-black uppercase rounded px-1 py-0.5 shrink-0" style={{ color: prio.color, background: 'rgba(255,255,255,0.9)', border: `1px solid ${prio.color}` }} title={prio.label}>
+                            {prio.label || '—'}
+                          </span>
+                        )}
                       </div>
                       <div className="whitespace-normal break-words overflow-hidden min-w-0" style={{ overflowWrap: 'anywhere' }}>
                         <p className="text-[10px] font-bold text-slate-800 leading-tight mb-1.5 line-clamp-3 block w-full" style={{ display: 'block', whiteSpace: 'normal', overflowWrap: 'anywhere' }}>{task.description}</p>
@@ -181,7 +209,7 @@ export default function BoardView({ projects, projectsForCreate, config, onSilen
                       {task.interlocuteur && String(task.interlocuteur).trim() && <p className="text-[10px] text-slate-500 mb-1 flex items-center gap-1 min-w-0 truncate">🏢 {String(task.interlocuteur).trim()}</p>}
                       <div className="flex flex-wrap gap-1 items-center">
                         {task.assignee && <span className="text-[7px] text-slate-500 font-bold bg-slate-50 px-1.5 py-0.5 rounded">👤 {task.assignee}</span>}
-                        {task.tag && <span className="text-[7px] text-indigo-500 font-bold bg-indigo-50 px-1.5 py-0.5 rounded">#{task.tag}</span>}
+                        {task.tag && <TaskTagBadge tag={task.tag} config={config} size="sm" />}
                         {task.dueDate && <span className="text-[7px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded">📅 {fmtDate(task.dueDate)}</span>}
                         {isManager && task.validation && ['approved', 'returned_for_info', 'rejected'].includes(task.validation.status) && (
                           <span className="text-[7px] font-bold ml-auto flex items-center gap-0.5" style={{ color: task.validation.readByAgent ? '#16a34a' : '#94a3b8' }} title={task.validation.readByAgent ? 'Lu par l\'agent' : 'Non lu par l\'agent'}>
@@ -208,7 +236,7 @@ export default function BoardView({ projects, projectsForCreate, config, onSilen
             <div className="p-4 md:p-8 space-y-6 overflow-y-auto flex-1 min-h-0">
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block px-1">Description de la tâche</label>
-                <input autoFocus type="text" className="w-full bg-white/50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold text-slate-800 focus:border-[#007A78] focus:bg-white transition-all outline-none shadow-sm" placeholder="Que faut-il faire ?" value={newTask.description} onChange={(e) => setNewTask({ ...newTask, description: e.target.value })} />
+                <textarea className="w-full bg-white/50 border-2 border-slate-100 rounded-2xl px-5 py-4 text-sm font-bold text-slate-800 focus:border-[#007A78] focus:bg-white transition-all outline-none shadow-sm resize-none min-h-[80px]" placeholder="Que faut-il faire ?" value={newTask.description} onChange={(e) => setNewTask({ ...newTask, description: e.target.value })} rows={3} />
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
@@ -231,12 +259,24 @@ export default function BoardView({ projects, projectsForCreate, config, onSilen
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block px-1">Échéance</label>
-                  <input type="date" className="w-full bg-white/50 border-2 border-slate-100 rounded-2xl px-4 py-3 text-[12px] font-bold text-slate-800 outline-none" value={newTask.dueDate} onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })} />
+                  <div className="flex gap-2 flex-wrap items-center">
+                    <input type="date" className="flex-1 min-w-0 bg-white/50 border-2 border-slate-100 rounded-2xl px-4 py-3 text-[12px] font-bold text-slate-800 outline-none" value={newTask.dueDate} onChange={(e) => setNewTask({ ...newTask, dueDate: e.target.value })} />
+                    <input type="time" className="w-28 bg-white/50 border-2 border-slate-100 rounded-2xl px-4 py-3 text-[12px] font-bold text-slate-800 outline-none" value={newTask.dueTime} onChange={(e) => setNewTask({ ...newTask, dueTime: e.target.value })} />
+                    {(newTask.dueDate || newTask.dueTime) && (
+                      <button type="button" onClick={() => setNewTask({ ...newTask, dueDate: '', dueTime: '' })} className="text-[10px] font-bold text-slate-400 hover:text-red-600 px-2 py-1 rounded border border-slate-200 hover:border-red-200 transition-colors">Effacer</button>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block px-1">Priorité</label>
                   <select className="w-full bg-white/50 border-2 border-slate-100 rounded-2xl px-4 py-3 text-[12px] font-bold text-slate-800 outline-none" value={newTask.priority} onChange={(e) => setNewTask({ ...newTask, priority: e.target.value })}>
                     {PRIORITIES.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block px-1">Temps estimé</label>
+                  <select className="w-full bg-white/50 border-2 border-slate-100 rounded-2xl px-4 py-3 text-[12px] font-bold text-slate-800 outline-none" value={newTask.estimatedDuration !== undefined ? String(newTask.estimatedDuration) : '0'} onChange={(e) => setNewTask({ ...newTask, estimatedDuration: parseFloat(e.target.value) })}>
+                    {ESTIMATED_DURATION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                   </select>
                 </div>
                 <div className="space-y-2">
@@ -246,6 +286,14 @@ export default function BoardView({ projects, projectsForCreate, config, onSilen
                   </select>
                 </div>
               </div>
+              <div className="space-y-2">
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block px-1">Interlocuteur / Société concernée</label>
+                <textarea className="w-full bg-white/50 border-2 border-slate-100 rounded-2xl px-4 py-3 text-[12px] font-bold text-slate-800 outline-none focus:border-[#007A78] focus:bg-white resize-none min-h-[70px]" placeholder="Ex: Entreprise Dupont, Mairie, Chercheur..." value={newTask.interlocuteur} onChange={(e) => setNewTask({ ...newTask, interlocuteur: e.target.value })} rows={2} />
+              </div>
+              <label className="flex items-center gap-2 text-[11px] font-bold text-slate-600 cursor-pointer">
+                <input type="checkbox" checked={!!newTask.urgent} onChange={(e) => setNewTask({ ...newTask, urgent: e.target.checked })} className="w-4 h-4 rounded border-slate-200" />
+                🔥 Urgent
+              </label>
             </div>
             <div className="px-4 md:px-8 py-6 bg-black/5 flex gap-4 flex-shrink-0">
               <button onClick={() => setShowModal(false)} className="flex-1 px-6 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest bg-white text-slate-400 hover:text-slate-600 border border-slate-100 transition-all shadow-sm">Annuler</button>

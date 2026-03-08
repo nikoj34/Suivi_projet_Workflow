@@ -3,6 +3,12 @@ import { createPortal } from 'react-dom';
 import { getCloudAuth } from '../lib/firebase';
 import { BOARD_COLS, PRIORITIES, ESTIMATED_DURATION_OPTIONS } from '../lib/constants';
 import { today, addTaskLog, formatAgentDisplayName } from '../lib/utils';
+import TaskTagBadge from './TaskTagBadge';
+
+/** Mettre à true pour réafficher le bouton Archiver dans le détail d'une action. */
+const SHOW_ARCHIVE_BUTTON = false;
+/** Mettre à true pour réafficher le bloc "Message pour le valideur" et le bouton "Demander la validation". */
+const SHOW_VALIDATION_REQUEST = false;
 
 export default function ItemDetailPanel({ projectId, taskId, projects, config, onClose, onSave, onEditFull, onDelete, onArchive, managerAgentIds, onSilentSave, currentUid, managerAgentLabels }) {
   const proj = (projects || []).find((p) => p.id === projectId);
@@ -272,10 +278,13 @@ export default function ItemDetailPanel({ projectId, taskId, projects, config, o
               </div>
               <div className="space-y-2">
                 <label className={lblCls}>Tag</label>
-                <select className={inpCls} value={t.tag || ''} onChange={(e) => upd({ tag: e.target.value })} disabled={effectiveLock}>
-                  <option value="">Aucun tag</option>
-                  {(config?.taskTags || []).map((tg) => <option key={tg} value={tg}>{tg}</option>)}
-                </select>
+                <div className="flex flex-wrap items-center gap-2">
+                  <select className={inpCls} value={t.tag || ''} onChange={(e) => upd({ tag: e.target.value })} disabled={effectiveLock}>
+                    <option value="">Aucun tag</option>
+                    {(config?.taskTags || []).map((tg) => <option key={tg} value={tg}>{tg}</option>)}
+                  </select>
+                  {t.tag && <TaskTagBadge tag={t.tag} config={config} size="md" />}
+                </div>
               </div>
               <div className="space-y-2">
                 <label className={lblCls}>Échéance</label>
@@ -318,7 +327,7 @@ export default function ItemDetailPanel({ projectId, taskId, projects, config, o
               </div>
               <div className="space-y-2">
                 <label className={lblCls}>Statut</label>
-                <select className={inpCls} value={(t.done ? 'Terminé' : t.status) || 'À faire'} onChange={(e) => { const v = e.target.value; upd({ status: v, done: v === 'Terminé' }); }} disabled={effectiveLock}>
+                <select className={inpCls} value={t.done ? 'Terminé' : (t.status === 'Validé' ? 'À faire' : (t.status || 'À faire'))} onChange={(e) => { const v = e.target.value; upd({ status: v, done: v === 'Terminé' }); }} disabled={effectiveLock}>
                   {BOARD_COLS.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
                 </select>
               </div>
@@ -392,10 +401,10 @@ export default function ItemDetailPanel({ projectId, taskId, projects, config, o
 
             {/* Bloc boutons en fin de contenu scrollable (aucun fixed/absolute/sticky/bottom-0) */}
             <div className="flex flex-wrap gap-3 pt-2 pb-6">
-              {!fieldLock && !isManagerForThisTask && onArchive && <button type="button" onClick={handleArchive} className="px-4 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest bg-amber-500 text-white hover:bg-amber-600 transition-all shadow-sm">Archiver</button>}
+              {SHOW_ARCHIVE_BUTTON && !fieldLock && !isManagerForThisTask && onArchive && <button type="button" onClick={handleArchive} className="px-4 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest bg-amber-500 text-white hover:bg-amber-600 transition-all shadow-sm">Archiver</button>}
               {!fieldLock && !isManagerForThisTask && onDelete && <button type="button" onClick={handleDelete} className="px-4 py-3 rounded-2xl text-[11px] font-black uppercase tracking-widest bg-red-500 text-white hover:bg-red-600 transition-all shadow-sm">Supprimer</button>}
               <button onClick={onClose} className="flex-1 min-w-[100px] px-6 py-4 rounded-2xl text-[11px] font-black uppercase tracking-widest bg-white text-slate-400 hover:text-slate-600 border border-slate-100 transition-all shadow-sm">Fermer</button>
-              {!effectiveLock && t.status !== 'À valider' && (
+              {SHOW_VALIDATION_REQUEST && !effectiveLock && t.status !== 'À valider' && (
                 <div className="w-full space-y-2">
                   <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block">Message pour le valideur (optionnel)</label>
                   <textarea className="w-full whitespace-normal break-words resize-none min-h-[100px] py-2 px-3 border-2 border-slate-100 rounded-xl text-[12px] font-bold text-slate-800 outline-none focus:border-indigo-400 bg-white/50" rows={3} placeholder="Ex: Merci de valider cette action après vérification..." value={validationRequestMessage} onChange={(e) => setValidationRequestMessage(e.target.value)} />

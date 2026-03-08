@@ -344,7 +344,7 @@ export default function Dashboard({
                   <div
                     key={p.id}
                     className="cursor-pointer hover:opacity-90 transition-opacity"
-                    onClick={() => projObj && onEditTask && onEditTask(projObj)}
+                    onClick={() => projObj && onEditTask && onEditTask(projObj, 'planning')}
                     title="Ouvrir l'opération"
                   >
                     <div className="flex justify-between mb-1">
@@ -401,7 +401,7 @@ export default function Dashboard({
                 <div
                   key={i}
                   className="flex items-center justify-between p-2.5 rounded-xl bg-white/40 border border-slate-100 gap-3 cursor-pointer hover:bg-white/70 transition-colors"
-                  onClick={() => d.proj && onEditTask && onEditTask(d.proj)}
+                  onClick={() => d.proj && onEditTask && onEditTask(d.proj, 'planning')}
                   title="Ouvrir l'opération"
                 >
                   <div className="min-w-0 flex-1">
@@ -445,7 +445,7 @@ export default function Dashboard({
                     <div
                       key={p.id}
                       className="flex items-center gap-3 p-2.5 rounded-xl bg-red-50/50 border border-red-100 cursor-pointer hover:bg-red-50/80 transition-colors"
-                      onClick={() => onEditTask && onEditTask(p)}
+                      onClick={() => onEditTask && onEditTask(p, 'planning')}
                       title="Ouvrir l'opération"
                     >
                       <ic.Warn s={14} c="text-red-400 flex-shrink-0" />

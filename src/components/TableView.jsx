@@ -2,6 +2,7 @@ import { useState, useMemo } from 'react';
 import { BOARD_COLS, PRIORITIES } from '../lib/constants';
 import { today, isTaskArchived, addTaskLog, fmtDate, getPriority, getColDef } from '../lib/utils';
 import ItemDetailPanel from './ItemDetailPanel';
+import TaskTagBadge from './TaskTagBadge';
 
 const colW = { check: '36px', projet: '160px', task: '1fr', status: '120px', priority: '100px', assignee: '120px', interlocuteur: '130px', dueDate: '100px', tag: '90px', actions: '60px' };
 const gridCols = `${colW.check} ${colW.projet} ${colW.task} ${colW.status} ${colW.priority} ${colW.assignee} ${colW.interlocuteur} ${colW.dueDate} ${colW.tag} ${colW.actions}`;
@@ -43,7 +44,10 @@ export default function TableView({ projects, config, onSilentSave, onEditProjec
     });
     if (!showDone) list = list.filter((t) => !t.done && t.status !== 'Terminé');
     if (filterProj) list = list.filter((t) => t._projId === filterProj);
-    if (filterStatus) list = list.filter((t) => (t.status || 'À faire') === filterStatus);
+    if (filterStatus) {
+      const statusForFilter = (t) => (t.done ? 'Terminé' : (t.status === 'Validé' ? 'À faire' : (t.status || 'À faire')));
+      list = list.filter((t) => statusForFilter(t) === filterStatus);
+    }
     if (filterPrio) list = list.filter((t) => (t.priority || '') === filterPrio);
     if (search) {
       const q = search.toLowerCase();
@@ -121,11 +125,16 @@ export default function TableView({ projects, config, onSilentSave, onEditProjec
       }));
     }
     if (groupBy === 'status') {
+      const statusCol = (t) => {
+        if (t.done) return 'Terminé';
+        const s = t.status || 'À faire';
+        return s === 'Validé' ? 'À faire' : s;
+      };
       return BOARD_COLS.map((col) => ({
         key: col.id,
         label: col.label,
         color: col.color,
-        tasks: allTasks.filter((t) => (t.done ? 'Terminé' : t.status || 'À faire') === col.id),
+        tasks: allTasks.filter((t) => statusCol(t) === col.id),
       })).filter((g) => g.tasks.length > 0);
     }
     if (groupBy === 'priority') {
@@ -237,9 +246,7 @@ export default function TableView({ projects, config, onSilentSave, onEditProjec
           />
         </div>
         <div className="pr-2">
-          <span className="block text-[8px] font-black text-indigo-500 bg-indigo-50 px-1 py-0.5 rounded overflow-hidden text-ellipsis whitespace-nowrap">
-            {task.tag || ''}
-          </span>
+          <TaskTagBadge tag={task.tag} config={config} size="sm" />
         </div>
         <div className="flex gap-1 justify-center opacity-0 group-hover:opacity-100">
           <button

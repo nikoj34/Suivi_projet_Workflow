@@ -5,6 +5,8 @@ import ic from './icons';
 const GANTT_ROW_H = 52;
 const GANTT_LBL_W = 200;
 const ZOOM_MODES = ['Jour', 'Semaine', 'Mois', 'Trimestre', 'Année'];
+/** Nombre de jours à afficher avant la date du jour pour ancrer le Gantt sur "aujourd'hui". */
+const DAYS_BEFORE_TODAY = 14;
 
 function isoWeek(d) {
   const t = new Date(d);
@@ -23,6 +25,7 @@ export default function GanttChart({
   onExportXlsx,
   onDownloadTemplate,
   onImportRef,
+  onTaskClick,
 }) {
   const [zoom, setZoom] = useState('Semaine');
   const todayStr = today();
@@ -47,9 +50,15 @@ export default function GanttChart({
       if (t[k]) allDs.push(new Date(t[k] + 'T00:00:00'));
     });
   });
-  allDs.push(new Date(todayStr + 'T00:00:00'));
-  let minD = new Date(Math.min(...allDs));
-  let maxD = new Date(Math.max(...allDs));
+  const todayDate = new Date(todayStr + 'T00:00:00');
+  allDs.push(todayDate);
+  const maxTaskDate = allDs.length > 0 ? new Date(Math.max(...allDs)) : todayDate;
+  // Toujours ancrer le Gantt sur la date du jour avec quelques jours avant
+  let minD = new Date(todayDate);
+  minD.setDate(minD.getDate() - DAYS_BEFORE_TODAY);
+  let maxD = new Date(maxTaskDate);
+  if (maxD < todayDate) maxD = new Date(todayDate);
+  maxD.setDate(maxD.getDate() + DAYS_BEFORE_TODAY);
 
   if (zoom === 'Jour') {
     const dow = minD.getDay();
@@ -97,14 +106,8 @@ export default function GanttChart({
   const totalW = Math.max(px, 100);
 
   const pxMap = {};
-  days.forEach((day) => {
-    pxMap[day.str] = day.px;
-  });
-  const gX = (str) => {
-    if (!str) return null;
-    if (pxMap[str] != null) return pxMap[str];
-    return null;
-  };
+  days.forEach((day) => { pxMap[day.str] = day.px; });
+  const gX = (str) => (str && pxMap[str] != null ? pxMap[str] : null);
   const gW = (s, e) => {
     if (!s || !e) return 0;
     const x1 = gX(s);
@@ -195,7 +198,7 @@ export default function GanttChart({
   );
 
   return (
-    <div>
+    <div className="w-full min-w-0">
       {printHeader}
       <div className="flex items-center gap-2 mb-4 flex-wrap no-print">
         <div className="flex items-center gap-1 bg-slate-100/70 p-1 rounded-xl border border-slate-200/50">
@@ -248,11 +251,14 @@ export default function GanttChart({
         )}
       </div>
 
-      <div className="overflow-x-auto" style={{ maxWidth: '100%' }}>
+      <div
+        className="gantt-h-scroll overflow-x-scroll overflow-y-visible w-full"
+        style={{ maxWidth: '100%', minHeight: 0, WebkitOverflowScrolling: 'touch' }}
+      >
         <div
           style={{
             width: GANTT_LBL_W + totalW,
-            minWidth: 500,
+            minWidth: GANTT_LBL_W + totalW,
             position: 'relative',
             fontFamily: 'Inter,sans-serif',
           }}
@@ -486,31 +492,49 @@ export default function GanttChart({
             ))}
             {todayX != null && (
               <>
+                {/* Ligne verticale rouge "Jour J" sur toute la hauteur du Gantt */}
                 <div
                   style={{
                     position: 'absolute',
                     top: 0,
                     bottom: 0,
-                    left: GANTT_LBL_W + todayX,
-                    width: zoom === 'Jour' ? colW : 2,
-                    background: 'rgba(239,68,68,0.07)',
-                    zIndex: 1,
-                    pointerEvents: 'none',
-                  }}
-                />
-                <div
-                  style={{
-                    position: 'absolute',
-                    top: 0,
-                    bottom: 0,
-                    left: GANTT_LBL_W + todayX + (zoom === 'Jour' ? colW / 2 : 0) - 1,
-                    width: 2,
-                    background: '#ef4444',
+                    left: GANTT_LBL_W + todayX + (zoom === 'Jour' ? colW / 2 : 0) - 2,
+                    width: 4,
+                    background: '#dc2626',
                     zIndex: 15,
                     pointerEvents: 'none',
-                    boxShadow: '0 0 4px rgba(239,68,68,0.5)',
+                    boxShadow: '0 0 8px rgba(220,38,38,0.5)',
                   }}
+                  aria-hidden
                 />
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: 0,
+                    left: GANTT_LBL_W + todayX + (zoom === 'Jour' ? colW / 2 : 0) - 2,
+                    transform: 'translateX(-50%)',
+                    zIndex: 20,
+                    pointerEvents: 'none',
+                  }}
+                  className="no-print"
+                >
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      background: '#dc2626',
+                      color: 'white',
+                      fontSize: 8,
+                      fontWeight: 900,
+                      padding: '2px 6px',
+                      borderRadius: 4,
+                      whiteSpace: 'nowrap',
+                      letterSpacing: '.05em',
+                      boxShadow: '0 1px 4px rgba(220,38,38,0.5)',
+                    }}
+                  >
+                    Jour J
+                  </span>
+                </div>
               </>
             )}
             {months.map((m, i) => (
@@ -554,7 +578,9 @@ export default function GanttChart({
               const statusLabel = t.done
                 ? '✓ Terminé'
                 : delayDays > 0
-                  ? `+${delayDays}j retard`
+                  ? t.actualEnd
+                    ? `+${delayDays}j retard`
+                    : `En cours (+${delayDays}j retard)`
                   : t.actualStart && !t.actualEnd
                     ? 'En cours'
                     : 'Planifié';
@@ -562,6 +588,10 @@ export default function GanttChart({
               return (
                 <div
                   key={t.id}
+                  role={onTaskClick ? 'button' : undefined}
+                  tabIndex={onTaskClick ? 0 : undefined}
+                  onClick={() => onTaskClick?.(t)}
+                  onKeyDown={(e) => onTaskClick && (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), onTaskClick(t))}
                   className="gantt-row"
                   style={{
                     display: 'flex',
@@ -569,6 +599,7 @@ export default function GanttChart({
                     borderBottom: '1px solid rgba(226,232,240,0.5)',
                     position: 'relative',
                     zIndex: 2,
+                    cursor: onTaskClick ? 'pointer' : undefined,
                   }}
                 >
                   <div
@@ -782,39 +813,6 @@ export default function GanttChart({
                 </div>
               );
             })}
-            {todayX != null && (
-              <div
-                style={{
-                  position: 'absolute',
-                  top: -8,
-                  left:
-                    GANTT_LBL_W +
-                    todayX +
-                    (zoom === 'Jour' ? colW / 2 : 0) -
-                    1,
-                  zIndex: 20,
-                  pointerEvents: 'none',
-                  transform: 'translateX(-50%)',
-                }}
-                className="no-print"
-              >
-                <div
-                  style={{
-                    background: '#ef4444',
-                    color: 'white',
-                    fontSize: 7,
-                    fontWeight: 900,
-                    padding: '1px 5px',
-                    borderRadius: 4,
-                    whiteSpace: 'nowrap',
-                    letterSpacing: '.06em',
-                    boxShadow: '0 1px 4px rgba(239,68,68,0.4)',
-                  }}
-                >
-                  Aujourd'hui
-                </div>
-              </div>
-            )}
           </div>
 
           <div
@@ -857,11 +855,11 @@ export default function GanttChart({
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
               <div
                 style={{
-                  width: 2,
+                  width: 3,
                   height: 12,
-                  background: '#ef4444',
+                  background: '#dc2626',
                   borderRadius: 1,
-                  boxShadow: '0 0 3px rgba(239,68,68,0.4)',
+                  boxShadow: '0 0 3px rgba(220,38,38,0.5)',
                 }}
               />
               <span
@@ -873,7 +871,7 @@ export default function GanttChart({
                   letterSpacing: '.08em',
                 }}
               >
-                Aujourd'hui
+                Jour J
               </span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
@@ -887,7 +885,7 @@ export default function GanttChart({
                   letterSpacing: '.08em',
                 }}
               >
-                Retard indiqué
+                Retard : fin prévue dépassée, tâche non terminée ou fin réelle après la fin prévue
               </span>
             </div>
           </div>

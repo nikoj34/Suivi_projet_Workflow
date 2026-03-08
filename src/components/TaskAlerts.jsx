@@ -132,8 +132,13 @@ export default function TaskAlerts({ projects, onSilentSave }) {
           : x
       ),
     };
-    if (onSilentSave) onSilentSave(updProj);
-    setAlerts(alerts.filter((a) => a.task.id !== task.id));
+    const done = () => setAlerts((prev) => prev.filter((a) => a.task.id !== task.id));
+    if (onSilentSave) {
+      const p = onSilentSave(updProj);
+      if (p && typeof p.then === 'function') p.then(done).catch(() => {});
+    } else {
+      done();
+    }
   };
 
   const handleSnooze = (proj, task, newDate, newTime) => {
@@ -150,8 +155,13 @@ export default function TaskAlerts({ projects, onSilentSave }) {
           : x
       ),
     };
-    if (onSilentSave) onSilentSave(updProj);
-    setAlerts(alerts.filter((a) => a.task.id !== task.id));
+    const done = () => setAlerts((prev) => prev.filter((a) => a.task.id !== task.id));
+    if (onSilentSave) {
+      const p = onSilentSave(updProj);
+      if (p && typeof p.then === 'function') p.then(done).catch(() => {});
+    } else {
+      done();
+    }
   };
 
   /** Efface uniquement la date d'échéance (dueDate/dueTime). Ne modifie pas status ni done. */
@@ -162,8 +172,13 @@ export default function TaskAlerts({ projects, onSilentSave }) {
         x.id === task.id ? { ...x, dueDate: '', dueTime: '' } : x
       ),
     };
-    if (onSilentSave) onSilentSave(updProj);
-    setAlerts(alerts.filter((a) => a.task.id !== task.id));
+    const done = () => setAlerts((prev) => prev.filter((a) => a.task.id !== task.id));
+    if (onSilentSave) {
+      const p = onSilentSave(updProj);
+      if (p && typeof p.then === 'function') p.then(done).catch(() => {});
+    } else {
+      done();
+    }
   };
 
   const setAlertSnooze = (i, patch) => {

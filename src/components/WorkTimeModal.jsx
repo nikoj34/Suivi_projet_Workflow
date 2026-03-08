@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { DEFAULT_WORKTIME, WORKTIME_DAY_LABELS } from '../lib/constants';
+import { evaluateAmountExpression } from '../lib/utils';
 
 export default function WorkTimeModal({ visible, onClose, workTimeConfig, onSave }) {
   const [workDays, setWorkDays] = useState(() =>
@@ -11,25 +12,28 @@ export default function WorkTimeModal({ visible, onClose, workTimeConfig, onSave
       workTimeConfig?.hoursPerDay != null ? Number(workTimeConfig.hoursPerDay) : 7.5;
     return { mon: fallback, tue: fallback, wed: fallback, thu: fallback, fri: fallback };
   });
-
+  const [rawHours, setRawHours] = useState({});
   useEffect(() => {
     if (visible) {
       setWorkDays(
         workTimeConfig?.workDays ? { ...workTimeConfig.workDays } : { ...DEFAULT_WORKTIME.workDays }
       );
+      let next = {};
       if (workTimeConfig?.workHours) {
-        setWorkHours({ ...workTimeConfig.workHours });
+        next = { ...workTimeConfig.workHours };
+        setWorkHours(next);
       } else {
         const fallback =
           workTimeConfig?.hoursPerDay != null ? Number(workTimeConfig.hoursPerDay) : 7.5;
-        setWorkHours({
-          mon: fallback,
-          tue: fallback,
-          wed: fallback,
-          thu: fallback,
-          fri: fallback,
-        });
+        next = { mon: fallback, tue: fallback, wed: fallback, thu: fallback, fri: fallback };
+        setWorkHours(next);
       }
+      const raw = {};
+      WORKTIME_DAY_LABELS.forEach((day) => {
+        const v = next[day.key];
+        raw[day.key] = v === 0 || v === '' ? '' : String(v);
+      });
+      setRawHours(raw);
     }
   }, [visible, workTimeConfig]);
 
@@ -85,22 +89,25 @@ export default function WorkTimeModal({ visible, onClose, workTimeConfig, onSave
                   </label>
                   <div className="flex items-center gap-2">
                     <input
-                      type="number"
-                      min={0}
-                      max={24}
-                      step={0.5}
+                      type="text"
+                      inputMode="decimal"
                       disabled={!workDays[d.key]}
                       className={
                         'inp py-1.5 px-3 text-sm rounded-lg border w-24 text-center ' +
                         (!workDays[d.key] ? 'opacity-40 cursor-not-allowed bg-slate-100' : 'border-slate-200')
                       }
-                      value={workHours[d.key]}
+                      value={rawHours[d.key] !== undefined ? rawHours[d.key] : (workHours[d.key] === 0 || workHours[d.key] === '' ? '' : String(workHours[d.key]))}
                       onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        setWorkHours((prev) => ({
-                          ...prev,
-                          [d.key]: isNaN(val) ? 0 : val,
-                        }));
+                        const v = e.target.value.replace(',', '.');
+                        setRawHours((prev) => ({ ...prev, [d.key]: v }));
+                      }}
+                      onBlur={() => {
+                        const v = String(rawHours[d.key] ?? workHours[d.key] ?? '').trim().replace(/,/g, '.');
+                        const fromExpr = evaluateAmountExpression(v);
+                        const val = fromExpr !== null ? fromExpr : parseFloat(v);
+                        const n = typeof val === 'number' && !isNaN(val) ? Math.min(24, Math.max(0, val)) : (workHours[d.key] ?? 0);
+                        setWorkHours((prev) => ({ ...prev, [d.key]: n }));
+                        setRawHours((prev) => ({ ...prev, [d.key]: n === 0 ? '' : String(n) }));
                       }}
                     />
                     <span className="text-[10px] font-bold text-slate-400">h</span>

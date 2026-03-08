@@ -1,4 +1,4 @@
-import { fmtDate, fmtAmt, projBudget, today } from './utils';
+import { fmtDate, fmtAmt2Dec, projBudget, today } from './utils';
 
 export function exportWordBlob(html, filename) {
   const pre =
@@ -38,9 +38,9 @@ export function genProjectRecap(p, logo) {
   html += '<h1>Fiche projet : ' + (p.title || '') + '</h1>';
   html += '<h2>Informations générales</h2><table><tr><th>Champ</th><th>Valeur</th></tr>';
   html += `<tr><td>Site</td><td>${p.location || ''}${p.subLocation ? ' — ' + p.subLocation : ''}</td></tr>`;
-  html += `<tr><td>Type de travaux</td><td>${p.typeTravaux || 'N/A'}</td></tr>`;
+  html += `<tr><td>Type de projet</td><td>${p.typeTravaux || 'N/A'}</td></tr>`;
   html += `<tr><td>Phase courante</td><td><strong>${p.phaseActive || 'N/A'}</strong></td></tr>`;
-  html += `<tr><td>Date OS</td><td>${p.dateOS ? fmtDate(p.dateOS) : '—'}</td></tr>`;
+  html += `<tr><td>Date de démarrage</td><td>${p.dateOS ? fmtDate(p.dateOS) : '—'}</td></tr>`;
   html += `<tr><td>Livraison prévue</td><td>${p.dateLivraisonPrev ? fmtDate(p.dateLivraisonPrev) : '—'}</td></tr>`;
   html += `<tr><td>Avancement physique</td><td>${p.avancementPhysique || '0'}%</td></tr></table>`;
   html += '<h2>Planning</h2><table><tr><th>Tâche</th><th>Début prévu</th><th>Fin prévue</th><th>Début réel</th><th>Fin réelle</th><th>Statut</th></tr>';
@@ -50,11 +50,11 @@ export function genProjectRecap(p, logo) {
   });
   html += '</table>';
   html += '<h2>Budget & Engagements</h2><table><tr><th>Budget total</th><th>Total engagé</th><th>Taux</th><th>Reste</th></tr>';
-  html += `<tr><td>${fmtAmt(budget)}</td><td>${fmtAmt(spent)}</td><td><strong>${ratio}%</strong>${ratio > 100 ? ' <span class="badge bg-red">DÉPASSEMENT</span>' : ''}</td><td>${fmtAmt(budget - spent)}</td></tr></table>`;
+  html += `<tr><td>${fmtAmt2Dec(budget)}</td><td>${fmtAmt2Dec(spent)}</td><td><strong>${ratio}%</strong>${ratio > 100 ? ' <span class="badge bg-red">DÉPASSEMENT</span>' : ''}</td><td>${fmtAmt2Dec(budget - spent)}</td></tr></table>`;
   if ((p.lots || []).length > 0) {
     html += '<table><tr><th>Lot</th><th>Entreprise</th><th>Montant HT</th></tr>';
     p.lots.forEach((l) => {
-      html += `<tr><td>${l.label}</td><td>${l.entreprise || '—'}</td><td>${fmtAmt(parseFloat(l.montant) || 0)}</td></tr>`;
+      html += `<tr><td>${l.label}</td><td>${l.entreprise || '—'}</td><td>${fmtAmt2Dec(parseFloat(l.montant) || 0)}</td></tr>`;
     });
     html += '</table>';
   }
@@ -76,9 +76,9 @@ export function genProjectRecap(p, logo) {
     html += '</table>';
   }
   if ((p.intervenants || []).length > 0) {
-    html += '<h2>Intervenants</h2><table><tr><th>Entreprise</th><th>Rôle</th><th>Nom</th><th>Email</th><th>Tél</th></tr>';
+    html += '<h2>Intervenants</h2><table><tr><th>Entreprise</th><th>Rôle</th><th>Nom</th><th>Email</th><th>Tél</th><th>Lot</th></tr>';
     p.intervenants.forEach((i) => {
-      html += `<tr><td>${i.entreprise || ''}</td><td>${i.role || ''}</td><td>${i.nom || ''}</td><td>${i.email || ''}</td><td>${i.tel || ''}</td></tr>`;
+      html += `<tr><td>${i.entreprise || ''}</td><td>${i.role || ''}</td><td>${i.nom || ''}</td><td>${i.email || ''}</td><td>${i.tel || ''}</td><td>${i.lot || ''}</td></tr>`;
     });
     html += '</table>';
   }
@@ -98,8 +98,8 @@ export function genAllProjectsRecap(projects, logo) {
   html += '<h1>Synthèse générale</h1>';
   html += '<table><tr><th>Indicateur</th><th>Valeur</th></tr>';
   html += `<tr><td>Projets actifs</td><td><strong>${active.length}</strong></td></tr>`;
-  html += `<tr><td>Budget total</td><td>${fmtAmt(totalBudget)}</td></tr>`;
-  html += `<tr><td>Total engagé</td><td>${fmtAmt(totalSpent)} (${totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0}%)</td></tr></table>`;
+  html += `<tr><td>Budget total</td><td>${fmtAmt2Dec(totalBudget)}</td></tr>`;
+  html += `<tr><td>Total engagé</td><td>${fmtAmt2Dec(totalSpent)} (${totalBudget > 0 ? Math.round((totalSpent / totalBudget) * 100) : 0}%)</td></tr></table>`;
   html += "<h1>Vue d'ensemble des opérations</h1>";
   html += '<table><tr><th>Opération</th><th>Site</th><th>Phase</th><th>Budget</th><th>Engagé</th><th>Taux</th><th>Tâches</th></tr>';
   active.forEach((p) => {
@@ -109,7 +109,7 @@ export function genAllProjectsRecap(projects, logo) {
     const tt = (p.tasks || []).length;
     const td = (p.tasks || []).filter((t) => t.done).length;
     const ratioCol = r > 100 ? 'bg-red' : r > 75 ? 'bg-amber' : 'bg-green';
-    html += `<tr><td><strong>${p.title}</strong></td><td>${p.location || ''}</td><td>${p.phaseActive || '—'}</td><td>${fmtAmt(b)}</td><td>${fmtAmt(s)}</td><td><span class="badge ${ratioCol}">${r}%</span></td><td>${td}/${tt}</td></tr>`;
+    html += `<tr><td><strong>${p.title}</strong></td><td>${p.location || ''}</td><td>${p.phaseActive || '—'}</td><td>${fmtAmt2Dec(b)}</td><td>${fmtAmt2Dec(s)}</td><td><span class="badge ${ratioCol}">${r}%</span></td><td>${td}/${tt}</td></tr>`;
   });
   html += '</table>';
   active.forEach((p) => {
@@ -122,7 +122,7 @@ export function genAllProjectsRecap(projects, logo) {
     const risks = (p.risques || []).filter((r2) => r2.niveau === 'Critique' || r2.niveau === 'Élevé');
     const hasCritical = lateTasks.length > 0 || lateGantt.length > 0 || r > 100 || risks.length > 0;
     html += `<h2>${p.title || 'Sans titre'}${hasCritical ? ' ⚠️' : ''}</h2>`;
-    html += `<p><strong>Site :</strong> ${p.location || ''} | <strong>Phase :</strong> ${p.phaseActive || '—'} | <strong>Budget :</strong> ${fmtAmt(b)} | <strong>Engagé :</strong> ${fmtAmt(s)} (${r}%)</p>`;
+    html += `<p><strong>Site :</strong> ${p.location || ''} | <strong>Phase :</strong> ${p.phaseActive || '—'} | <strong>Budget :</strong> ${fmtAmt2Dec(b)} | <strong>Engagé :</strong> ${fmtAmt2Dec(s)} (${r}%)</p>`;
     if (hasCritical) {
       html += '<p style="color:#dc2626;font-weight:bold">Points critiques :</p><ul>';
       if (r > 100) html += `<li>Dépassement budgétaire de ${r - 100}%</li>`;

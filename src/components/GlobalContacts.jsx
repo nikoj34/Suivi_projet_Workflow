@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ROLES_INTERV } from '../lib/constants';
 import ic from './icons';
 
 export default function GlobalContacts({ config, onSave, projects }) {
   const [cfg, setCfg] = useState(config);
   const [filter, setFilter] = useState('');
+  const [editingId, setEditingId] = useState(null);
   useEffect(() => setCfg(config), [config]);
   const contacts = cfg.contacts || [];
   const save = (nc) => {
@@ -12,31 +14,23 @@ export default function GlobalContacts({ config, onSave, projects }) {
     setCfg(u);
     onSave(u);
   };
-  const addContact = () =>
-    save([
-      ...contacts,
-      {
-        id: Date.now().toString(),
-        entreprise: '',
-        nom: '',
-        role: '',
-        email: '',
-        tel: '',
-        notes: '',
-      },
-    ]);
   const updC = (id, patch) => save(contacts.map((c) => (c.id === id ? { ...c, ...patch } : c)));
-  const delC = (id) => save(contacts.filter((c) => c.id !== id));
+  const delC = (id) => {
+    save(contacts.filter((c) => c.id !== id));
+    setEditingId((prev) => (prev === id ? null : prev));
+  };
   const fl = filter.toLowerCase();
   const filtered = fl
     ? contacts.filter(
         (c) =>
           (c.entreprise || '').toLowerCase().includes(fl) ||
           (c.nom || '').toLowerCase().includes(fl) ||
-          (c.role || '').toLowerCase().includes(fl)
+          (c.role || '').toLowerCase().includes(fl) ||
+          (c.lot || '').toLowerCase().includes(fl)
       )
     : contacts;
   const entreprises = [...new Set(contacts.map((c) => c.entreprise).filter(Boolean))].sort();
+  const editingContact = editingId ? contacts.find((c) => c.id === editingId) : null;
 
   return (
     <div className="space-y-6 fi">
@@ -53,10 +47,14 @@ export default function GlobalContacts({ config, onSave, projects }) {
           </p>
         </div>
         <button
-          onClick={addContact}
+          onClick={() => {
+            const id = Date.now().toString();
+            save([...contacts, { id, role: '', lot: '', entreprise: '', nom: '', email: '', tel: '', notes: '' }]);
+            setEditingId(id);
+          }}
           className="bg-[#007A78] text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase flex items-center gap-1.5 hover:bg-[#006664] transition-all"
         >
-          <ic.Plus s={13} /> Ajouter
+          <ic.Plus s={13} /> Ajouter un contact
         </button>
       </div>
       <div className="flex gap-2 items-center">
@@ -65,7 +63,7 @@ export default function GlobalContacts({ config, onSave, projects }) {
           <input
             value={filter}
             onChange={(e) => setFilter(e.target.value)}
-            placeholder="Filtrer par nom, entreprise, rôle…"
+            placeholder="Filtrer par nom, entreprise, rôle, lot…"
             className="inp pl-9 py-2 text-xs w-full"
           />
         </div>
@@ -90,77 +88,180 @@ export default function GlobalContacts({ config, onSave, projects }) {
           </div>
         </div>
       )}
-      <div className="space-y-2">
-        {filtered.length === 0 && (
+
+      {/* Liste des contacts en étiquettes (même style que Suivi projets / Intervenants) */}
+      <div>
+        <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest mb-3">
+          {filtered.length} contact{filtered.length !== 1 ? 's' : ''}
+          {fl ? ` pour "${filter}"` : ''}
+        </p>
+        {filtered.length === 0 ? (
           <p className="text-center text-xs text-slate-400 py-8 font-bold bg-white/30 rounded-xl border border-dashed border-slate-200">
             Aucun contact{fl ? ` pour "${filter}"` : ''}. Ajoutez votre premier contact !
           </p>
-        )}
-        {filtered.map((c) => (
-          <div
-            key={c.id}
-            className="glass p-4 space-y-3 hover:shadow-sm transition-all"
-          >
-            <div className="flex justify-between items-start">
-              <div className="flex items-center gap-2">
-                <span className="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 font-black text-xs">
-                  {(c.entreprise || c.nom || '?').charAt(0).toUpperCase()}
-                </span>
-                <div>
-                  <input
-                    value={c.entreprise || ''}
-                    onChange={(e) => updC(c.id, { entreprise: e.target.value })}
-                    className="text-sm font-black text-slate-800 bg-transparent outline-none border-b border-transparent hover:border-slate-200 focus:border-[#007A78] transition-colors w-44"
-                    placeholder="Entreprise *"
-                  />
-                  <span className="text-[8px] text-indigo-400 font-bold ml-2">
-                    {c.entreprise ? '#' + c.entreprise.replace(/\s+/g, '') : ''}
-                  </span>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {filtered.map((c) => (
+              <div key={c.id} className="flex flex-col gap-0 w-[260px] min-w-[260px]">
+                <div
+                  className={`group flex items-center gap-2 rounded-xl border-2 transition-all min-h-[72px] ${
+                    editingId === c.id
+                      ? 'bg-white border-[#007A78] shadow-md ring-2 ring-[#007A78]/20'
+                      : 'bg-white/80 border-slate-200 hover:border-slate-300 hover:shadow-sm'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1 py-2 pl-3 pr-1">
+                    {c.role ? (
+                      <span className="text-[8px] font-black uppercase px-2 py-0.5 rounded-md bg-[#007A78]/10 text-[#007A78] shrink-0">
+                        {c.role}
+                      </span>
+                    ) : (
+                      <span className="text-[8px] text-slate-400 px-2 py-0.5 shrink-0">Rôle</span>
+                    )}
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                      <span className="text-[11px] font-bold text-slate-800 block truncate">{c.nom || 'Sans nom'}</span>
+                      {c.entreprise && <span className="text-[9px] text-slate-500 block truncate">🏢 {c.entreprise}</span>}
+                      {c.lot && <span className="text-[8px] text-slate-500 block truncate">Lot : {c.lot}</span>}
+                      {(c.email || c.tel) && (
+                        <span className="text-[8px] text-slate-400 block truncate">{[c.email, c.tel].filter(Boolean).join(' · ')}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-0.5 pr-2">
+                    <button
+                      type="button"
+                      onClick={() => setEditingId(c.id)}
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-[#007A78] hover:bg-slate-100 transition-colors"
+                      title="Modifier"
+                    >
+                      <ic.Ed s={12} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => delC(c.id)}
+                      className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors"
+                      title="Supprimer"
+                    >
+                      <ic.Tr s={14} />
+                    </button>
+                  </div>
                 </div>
               </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Fenêtre popup création / modification contact (même que Suivi projets / Intervenants) */}
+      {editingId && editingContact && createPortal(
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm"
+          onClick={() => setEditingId(null)}
+        >
+          <div
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex-shrink-0 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+              <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">
+                {editingContact.nom || editingContact.entreprise ? 'Modifier le contact' : 'Nouveau contact'}
+              </h3>
               <button
-                onClick={() => delC(c.id)}
-                className="text-slate-300 hover:text-red-400 transition-colors p-1"
+                type="button"
+                onClick={() => setEditingId(null)}
+                className="w-10 h-10 rounded-full flex items-center justify-center bg-slate-100 hover:bg-slate-200 text-slate-500 transition-colors"
               >
-                <ic.Tr s={14} />
+                ✕
               </button>
             </div>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
-              <input
-                className="inp text-xs py-1.5"
-                value={c.nom || ''}
-                onChange={(e) => updC(c.id, { nom: e.target.value })}
-                placeholder="Nom / Contact"
-              />
-              <select
-                value={c.role || ''}
-                onChange={(e) => updC(c.id, { role: e.target.value })}
-                className="inp text-xs py-1.5"
+            <div className="flex-1 overflow-y-auto p-6 space-y-4">
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Rôle</label>
+                <select
+                  value={editingContact.role || ''}
+                  onChange={(e) => updC(editingId, { role: e.target.value })}
+                  className="inp w-full py-2.5 text-sm font-medium"
+                >
+                  <option value="">— Rôle —</option>
+                  {ROLES_INTERV.map((r) => (
+                    <option key={r} value={r}>{r}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Lot</label>
+                <input
+                  type="text"
+                  className="inp w-full py-2.5 text-sm"
+                  value={editingContact.lot || ''}
+                  onChange={(e) => updC(editingId, { lot: e.target.value })}
+                  placeholder="Lot"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Entreprise</label>
+                <input
+                  type="text"
+                  className="inp w-full py-2.5 text-sm"
+                  value={editingContact.entreprise || ''}
+                  onChange={(e) => updC(editingId, { entreprise: e.target.value })}
+                  placeholder="Entreprise"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Nom</label>
+                <input
+                  type="text"
+                  className="inp w-full py-2.5 text-sm"
+                  value={editingContact.nom || ''}
+                  onChange={(e) => updC(editingId, { nom: e.target.value })}
+                  placeholder="Nom"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Email</label>
+                <input
+                  type="email"
+                  className="inp w-full py-2.5 text-sm"
+                  value={editingContact.email || ''}
+                  onChange={(e) => updC(editingId, { email: e.target.value })}
+                  placeholder="Email"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Téléphone</label>
+                <input
+                  type="tel"
+                  className="inp w-full py-2.5 text-sm"
+                  value={editingContact.tel || ''}
+                  onChange={(e) => updC(editingId, { tel: e.target.value })}
+                  placeholder="Tél"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-1.5">Notes (optionnel)</label>
+                <textarea
+                  className="inp w-full py-2.5 text-sm min-h-[80px] resize-none"
+                  value={editingContact.notes || ''}
+                  onChange={(e) => updC(editingId, { notes: e.target.value })}
+                  placeholder="Notes…"
+                  rows={3}
+                />
+              </div>
+            </div>
+            <div className="flex-shrink-0 px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setEditingId(null)}
+                className="px-5 py-2.5 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-200 transition-colors"
               >
-                <option value="">— Rôle —</option>
-                {ROLES_INTERV.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
-              <input
-                className="inp text-xs py-1.5"
-                value={c.email || ''}
-                onChange={(e) => updC(c.id, { email: e.target.value })}
-                placeholder="Email"
-                type="email"
-              />
-              <input
-                className="inp text-xs py-1.5"
-                value={c.tel || ''}
-                onChange={(e) => updC(c.id, { tel: e.target.value })}
-                placeholder="Tél"
-              />
+                Fermer
+              </button>
             </div>
           </div>
-        ))}
-      </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

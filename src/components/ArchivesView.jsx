@@ -74,28 +74,30 @@ export default function ArchivesView({ projects, onEdit, onDelete, onArchive, on
   };
 
   return (
-    <div className="space-y-10">
-      <h2 className="text-2xl font-black text-slate-800 uppercase tracking-tight mb-2">
-        Archives
-      </h2>
-      <p className="text-[11px] font-bold text-slate-400 uppercase tracking-widest mb-6">
-        Archivage des projets et des tâches par mois et par année
-      </p>
+    <div className="space-y-8">
+      <header className="border-b border-slate-100 pb-4">
+        <h2 className="text-lg font-bold text-slate-800 tracking-tight">
+          Archives
+        </h2>
+        <p className="text-[10px] text-slate-400 mt-1">
+          Projets et tâches archivés par mois
+        </p>
+      </header>
 
-      <section className="space-y-6">
-        <h3 className="text-lg font-black text-slate-700 uppercase tracking-tight border-b border-slate-200 pb-2">
-          Archives projets
+      <section className="space-y-4">
+        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+          Projets archivés
         </h3>
         {projectGroups.length === 0 ? (
-          <div className="glass py-12 text-center">
-            <ic.Arch s={32} c="text-slate-200 mx-auto mb-3" />
-            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">
+          <div className="rounded-xl bg-slate-50/80 border border-slate-100 py-10 text-center">
+            <ic.Arch s={24} c="text-slate-200 mx-auto mb-2" />
+            <p className="text-slate-400 text-[10px] font-medium">
               Aucun projet archivé
             </p>
           </div>
         ) : (
           projectGroups.map((g) => (
-            <div key={g.year + '-' + g.monthKey} className="space-y-3">
+            <div key={g.year + '-' + g.monthKey} className="space-y-2">
               <ProjectList
                 projects={[]}
                 listOverride={g.items}
@@ -112,54 +114,50 @@ export default function ArchivesView({ projects, onEdit, onDelete, onArchive, on
         )}
       </section>
 
-      <section className="space-y-6">
-        <h3 className="text-lg font-black text-slate-700 uppercase tracking-tight border-b border-slate-200 pb-2">
-          Archives tâches
+      <section className="space-y-4">
+        <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+          Tâches terminées (archives)
         </h3>
         {taskGroups.length === 0 ? (
-          <div className="glass py-12 text-center">
-            <ic.Arch s={32} c="text-slate-200 mx-auto mb-3" />
-            <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">
-              Aucune tâche archivée (terminée)
+          <div className="rounded-xl bg-slate-50/80 border border-slate-100 py-10 text-center">
+            <ic.Arch s={24} c="text-slate-200 mx-auto mb-2" />
+            <p className="text-slate-400 text-[10px] font-medium">
+              Aucune tâche archivée
             </p>
           </div>
         ) : (
           taskGroups.map((g) => (
-            <div key={'t-' + g.year + '-' + g.monthKey} className="space-y-3">
-              <h4 className="text-sm font-black text-slate-500 uppercase tracking-widest">
+            <div key={'t-' + g.year + '-' + g.monthKey} className="space-y-2">
+              <p className="text-[10px] font-semibold text-slate-500 pl-1">
                 {g.monthLabel}
-              </h4>
-              <div className="grid grid-cols-1 gap-2">
+              </p>
+              <div className="grid grid-cols-1 gap-1.5">
                 {g.items.map((t) => (
                   <div
                     key={t.id}
-                    className="glass p-4 flex items-center justify-between gap-3 flex-wrap"
+                    className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-lg bg-white/60 border border-slate-100 hover:border-slate-200 transition-colors"
                   >
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-slate-800">
+                      <p className="text-xs font-medium text-slate-700 truncate">
                         {t.description || '—'}
                       </p>
-                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-0.5">
+                      <p className="text-[9px] text-slate-400 mt-0.5 truncate">
                         {t._projTitle || 'Projet'}
+                        {taskCompletedDateStr(t) && (
+                          <span className="text-slate-300 ml-1.5">
+                            · {new Date(taskCompletedDateStr(t) + 'T12:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' })}
+                          </span>
+                        )}
                       </p>
-                      {taskCompletedDateStr(t) && (
-                        <p className="text-[9px] text-slate-400 mt-0.5">
-                          Terminé le{' '}
-                          {new Date(taskCompletedDateStr(t) + 'T12:00:00').toLocaleDateString(
-                            'fr-FR',
-                            { day: '2-digit', month: 'short', year: 'numeric' }
-                          )}
-                        </p>
-                      )}
                     </div>
                     {onSilentSave && t._proj && (
                       <button
                         type="button"
                         onClick={() => handleDeleteArchivedTask(t)}
-                        className="p-2.5 bg-white rounded-xl text-slate-400 hover:text-red-500 transition-all shadow-sm border border-slate-100 flex-shrink-0"
+                        className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50/80 transition-colors flex-shrink-0"
                         title="Supprimer"
                       >
-                        <ic.Tr s={15} />
+                        <ic.Tr s={12} />
                       </button>
                     )}
                   </div>

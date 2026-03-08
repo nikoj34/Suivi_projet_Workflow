@@ -2,6 +2,11 @@ import { useState, useEffect, useRef } from 'react';
 import { db, backup } from '../lib/storage';
 import { emailToDisplayName } from '../lib/utils';
 import ic from './icons';
+import TaskTagBadge from './TaskTagBadge';
+import { TASK_TAG_ICON_OPTIONS } from '../lib/constants';
+
+/** Mettre à true pour réafficher la section Manager / Identité / UID dans Paramètres. */
+const SHOW_MANAGER_IDENTITY_UID = false;
 
 function BackupPanel() {
   const [bks, setBks] = useState([]);
@@ -151,6 +156,7 @@ export default function SettingsModal({
   const [agentIdsArray, setAgentIdsArray] = useState([]);
   const [newUidInput, setNewUidInput] = useState('');
   const [managerSaved, setManagerSaved] = useState(false);
+  const [tagsSectionOpen, setTagsSectionOpen] = useState(false);
 
   function getAgentDisplayName(uid) {
     const proj = (projects || []).find((p) => p.ownerId === uid);
@@ -245,6 +251,23 @@ export default function SettingsModal({
     }
   };
 
+  const getTagStyle = (tag) => cfg.taskTagStyles?.[tag] || {};
+  const setTagStyle = (tag, patch) => {
+    const next = { ...(cfg.taskTagStyles || {}), [tag]: { ...getTagStyle(tag), ...patch } };
+    const nc = { ...cfg, taskTagStyles: next };
+    setCfg(nc);
+    onSave(nc);
+  };
+  const removeTag = (index) => {
+    const tag = (cfg.taskTags || [])[index];
+    const nt = (cfg.taskTags || []).filter((_, i) => i !== index);
+    const nextStyles = { ...(cfg.taskTagStyles || {}) };
+    if (tag && nextStyles[tag]) delete nextStyles[tag];
+    const nc = { ...cfg, taskTags: nt, taskTagStyles: nextStyles };
+    setCfg(nc);
+    onSave(nc);
+  };
+
   return (
     <div className="space-y-6 fi">
       <h2 className="text-xl font-black text-slate-800 uppercase">Paramètres</h2>
@@ -297,17 +320,17 @@ export default function SettingsModal({
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-        <div className="glass p-6 space-y-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="glass p-4 space-y-3">
           <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Logo</p>
           <div
-            className="w-full aspect-[3/1] bg-white/50 border-2 border-dashed border-slate-200 rounded-xl flex items-center justify-center overflow-hidden cursor-pointer"
+            className="w-full max-w-[120px] aspect-square bg-white/50 border-2 border-dashed border-slate-200 rounded-xl flex items-center justify-center overflow-hidden cursor-pointer"
             onClick={() => logoRef.current?.click()}
           >
             {cfg.customLogo ? (
-              <img src={cfg.customLogo} className="max-h-full object-contain p-4" alt="Logo" />
+              <img src={cfg.customLogo} className="max-h-full max-w-full object-contain p-1" alt="Logo" />
             ) : (
-              <ic.Img s={28} />
+              <ic.Img s={20} />
             )}
           </div>
           <input
@@ -354,47 +377,97 @@ export default function SettingsModal({
           </div>
         </div>
         <div className="glass p-6 space-y-4">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-            Catégories de Tâches (Tags)
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {(cfg.taskTags || []).map((tag, i) => (
-              <span
-                key={i}
-                className="bg-white/80 border border-slate-200 px-2 py-1.5 rounded-lg text-[10px] font-bold text-slate-600 flex items-center gap-2 shadow-sm"
-              >
-                {tag}{' '}
-                <button
-                  onClick={() => {
-                    const nt = (cfg.taskTags || []).filter((_, idx) => idx !== i);
-                    setCfg({ ...cfg, taskTags: nt });
-                    onSave({ ...cfg, taskTags: nt });
-                  }}
-                  className="text-slate-300 hover:text-red-500 transition-colors"
-                >
-                  <ic.Tr s={12} />
-                </button>
-              </span>
-            ))}
-          </div>
-          <div className="flex gap-2 items-center mt-2">
-            <input
-              id="add-tag-inp"
-              className="inp py-1.5 text-xs flex-1"
-              placeholder="Nouveau tag..."
-              onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-            />
-            <button
-              id="btn-add-tag"
-              onClick={addTag}
-              className="bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg transition-colors"
+          <button
+            type="button"
+            onClick={() => setTagsSectionOpen((o) => !o)}
+            className="w-full flex items-center justify-between gap-2 text-left"
+          >
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+              Catégories de Tâches (Tags)
+            </p>
+            <span className="text-[9px] text-slate-400">
+              {(cfg.taskTags || []).length} tag{(cfg.taskTags || []).length > 1 ? 's' : ''}
+            </span>
+            <span
+              className={`transition-transform text-slate-400 ${tagsSectionOpen ? 'rotate-180' : ''}`}
+              aria-hidden
             >
-              <ic.Plus s={14} />
-            </button>
-          </div>
+              ▼
+            </span>
+          </button>
+          {tagsSectionOpen && (
+            <>
+              <p className="text-[9px] text-slate-500 -mt-2">
+                Couleur et icône pour chaque tag. Affichés sur les cartes et listes.
+              </p>
+              <div className="space-y-2">
+                {(cfg.taskTags || []).map((tag, i) => {
+                  const style = getTagStyle(tag);
+                  const color = style.color || '#64748b';
+                  const icon = style.icon ?? '';
+                  return (
+                    <div
+                      key={i}
+                      className="flex items-center gap-2 py-2 px-3 rounded-lg bg-white/60 border border-slate-100"
+                    >
+                      <TaskTagBadge tag={tag} config={cfg} size="md" />
+                      <span className="text-[10px] font-bold text-slate-600 w-24 truncate" title={tag}>
+                        {tag}
+                      </span>
+                      <label className="flex items-center gap-1 shrink-0">
+                        <span className="text-[8px] font-black text-slate-400 uppercase sr-only">Couleur</span>
+                        <input
+                          type="color"
+                          value={color}
+                          onChange={(e) => setTagStyle(tag, { color: e.target.value })}
+                          className="w-7 h-7 rounded cursor-pointer border border-slate-200 shrink-0"
+                          title="Couleur"
+                        />
+                      </label>
+                      <select
+                        value={icon}
+                        onChange={(e) => setTagStyle(tag, { icon: e.target.value })}
+                        className="inp py-1 px-0.5 text-[10px] w-11 min-w-11 max-w-11 h-7 text-center shrink-0"
+                        title="Icône"
+                      >
+                        {TASK_TAG_ICON_OPTIONS.map((opt) => (
+                          <option key={opt.id || 'none'} value={opt.id}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        type="button"
+                        onClick={() => removeTag(i)}
+                        className="ml-auto p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition-colors shrink-0"
+                        title="Supprimer le tag"
+                      >
+                        <ic.Tr s={12} />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="flex gap-2 items-center pt-1">
+                <input
+                  id="add-tag-inp"
+                  className="inp py-1.5 text-xs flex-1"
+                  placeholder="Nouveau tag..."
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
+                />
+                <button
+                  id="btn-add-tag"
+                  onClick={addTag}
+                  className="bg-slate-200 hover:bg-slate-300 text-slate-700 p-2 rounded-lg transition-colors shrink-0"
+                >
+                  <ic.Plus s={14} />
+                </button>
+              </div>
+            </>
+          )}
         </div>
         <BackupPanel />
-        {showManager && (
+        {SHOW_MANAGER_IDENTITY_UID && showManager && (
           <div className="glass p-6 space-y-4" style={{ gridColumn: '1 / -1' }}>
             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
               Manager — voir les projets de son équipe

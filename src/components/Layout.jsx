@@ -3,6 +3,12 @@ import { emailToDisplayName, today } from '../lib/utils';
 import ic, { KanbanIcon, WorkflowIcon, WorkloadIcon, ValidationIcon } from './icons';
 import logoDitam from '../assets/logo-ditam.png';
 
+/** Mettre à true pour réafficher "Mon Workflow" et "Ma charge" dans le menu. */
+const SHOW_WORKFLOW_AND_WORKLOAD = false;
+
+/** Mettre à true pour réafficher "Mon temps de travail" dans le menu Outils. */
+const SHOW_WORK_TIME = false;
+
 const navItemStyle = (active) => ({
   width: '100%',
   display: 'flex',
@@ -81,7 +87,7 @@ export default function Layout({
   useEffect(() => {
     if (lastSyncSuccessAt == null) return;
     setShowSavedBadge(true);
-    const t = setTimeout(() => setShowSavedBadge(false), 2000);
+    const t = setTimeout(() => setShowSavedBadge(false), 4000);
     return () => clearTimeout(t);
   }, [lastSyncSuccessAt]);
   const showCloudCheck = showSavedBadge;
@@ -274,18 +280,16 @@ export default function Layout({
           <NavGroup label="Vues">
             <NavItem id="dashboard" label="Dashboard" Icon={ic.Dash} view={view} onNav={handleNav} />
             <NavItem id="board" label="Suivi des tâches" Icon={KanbanIcon} badge={allTaskCount > 0 ? allTaskCount : null} badgeColor="bg-blue-100 text-blue-600" sub="Kanban · Tableau · Calendrier" view={view} onNav={handleNav} />
-            <NavItem id="workflow" label="Mon Workflow" Icon={WorkflowIcon} badge={(workflowBadgeCount ?? 0) > 0 ? workflowBadgeCount : null} badgeColor="bg-red-100 text-red-600" view={view} onNav={handleNav} />
-            <NavItem id="workload" label="Ma charge" Icon={WorkloadIcon} sub="Par responsable" view={view} onNav={handleNav} />
+            {SHOW_WORKFLOW_AND_WORKLOAD && <NavItem id="workflow" label="Mon Workflow" Icon={WorkflowIcon} badge={(workflowBadgeCount ?? 0) > 0 ? workflowBadgeCount : null} badgeColor="bg-red-100 text-red-600" view={view} onNav={handleNav} />}
+            {SHOW_WORKFLOW_AND_WORKLOAD && <NavItem id="workload" label="Ma charge" Icon={WorkloadIcon} sub="Par responsable" view={view} onNav={handleNav} />}
             {showManagerView && <NavItem id="managerView" label="Vue Manager" Icon={WorkloadIcon} sub="Charge équipe" view={view} onNav={handleNav} />}
             {showManagerView && <NavItem id="validation" label="Centre de Validation" Icon={ValidationIcon} badge={(validationPendingCount ?? 0) > 0 ? validationPendingCount : null} badgeColor="bg-red-100 text-red-600" view={view} onNav={handleNav} />}
           </NavGroup>
           <NavGroup label="Projets">
-            <NavItem id="list" label="Suivi Opérations" Icon={ic.List} badge={listCount > 0 ? listCount : null} badgeColor="bg-teal-100 text-teal-700" view={view} onNav={handleNav} />
-            <NavItem id="new" label="Nouvelle opération" Icon={ic.PlusC} view={view} onNav={handleNav} />
-            <NavItem id="archives" label="Archives" Icon={ic.Arch} view={view} onNav={handleNav} />
+            <NavItem id="list" label="Suivi projets" Icon={ic.List} badge={listCount > 0 ? listCount : null} badgeColor="bg-teal-100 text-teal-700" view={view} onNav={handleNav} />
           </NavGroup>
           <NavGroup label="Outils">
-            {onOpenWorkTime && (
+            {SHOW_WORK_TIME && onOpenWorkTime && (
               <button
                 type="button"
                 onClick={onOpenWorkTime}
@@ -300,6 +304,7 @@ export default function Layout({
             )}
             <NavItem id="contacts" label="Contacts" Icon={ic.Addr} view={view} onNav={handleNav} />
             <NavItem id="config" label="Paramètres" Icon={ic.Cog} view={view} onNav={handleNav} />
+            <NavItem id="archives" label="Archives" Icon={ic.Arch} view={view} onNav={handleNav} />
           </NavGroup>
         </nav>
         <div style={{ padding: '8px 10px 12px', flexShrink: 0 }}>

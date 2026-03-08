@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { getCloudDb, getCloudAuth } from '../lib/firebase';
 import { db, fs, backup } from '../lib/storage';
 import { SK, DEF_CFG, DEFAULT_WORKTIME } from '../lib/constants';
-import { projectsKey, withOwner, isGlobalOperation, formatAgentDisplayName } from '../lib/utils';
+import { projectsKey, withOwner, formatAgentDisplayName, isGlobalOperation } from '../lib/utils';
 import LoginScreen from './LoginScreen';
 import StartupScreen from './StartupScreen';
 import Layout from './Layout';
@@ -10,6 +10,7 @@ import Dashboard from './Dashboard';
 import BoardView from './BoardView';
 import TableView from './TableView';
 import CalendarView from './CalendarView';
+import BoardGanttView from './BoardGanttView';
 import WorkflowView from './WorkflowView';
 import WorkloadView from './WorkloadView';
 import ValidationView from './ValidationView';
@@ -135,18 +136,28 @@ export default function App() {
     };
   }, [cloudAuth]);
 
-  /** Fallback : si l'icône reste "connecting" (orange) plus de 3 s, forcer le passage à "online" pour ne pas bloquer l'affichage. */
+  /** Plus d'état "connecting" qui clignote : dès qu'on a user + cloudDb, on affiche "online" (vert).
+   * On ne passe en "offline" (rouge) qu'en cas d'erreur Firestore. Ainsi la sauvegarde passe tout de suite en vert. */
   useEffect(() => {
-    if (cloudStatus !== 'connecting' || !cloudDb || !user || user.isAnonymous) return;
+    if (!user || !cloudDb) return;
+    setCloudStatus('online');
+  }, [user, cloudDb]);
+
+  /** Fallback : si malgré tout l'icône reste "connecting" (orange) plus de 2 s, forcer "online". */
+  useEffect(() => {
+    if (cloudStatus !== 'connecting') return;
     const fallbackId = setTimeout(() => {
       setCloudStatus('online');
       setLastSyncSuccessAt(Date.now());
-    }, 3000);
+    }, 2000);
     return () => clearTimeout(fallbackId);
-  }, [cloudStatus, cloudDb, user]);
+  }, [cloudStatus]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user) {
+      setCloudStatus('offline');
+      return;
+    }
 
     const localProjs = db.all();
     const isCloudMode = !user.isAnonymous && cloudDb;
@@ -196,9 +207,10 @@ export default function App() {
           const merged = cloudProjects.map((cp) => {
             const local = localProjs.find((p) => p.id === cp.id);
             if (local && local.updatedAt && cp.updatedAt) {
-              if (new Date(cp.updatedAt) > new Date(local.updatedAt)) return cp;
+              if (new Date(cp.updatedAt) > new Date(local.updatedAt)) return { ...local, ...cp };
               return local;
             }
+            if (local) return { ...local, ...cp };
             return cp;
           });
           localProjs.forEach((p) => {
@@ -287,14 +299,21 @@ export default function App() {
     });
   };
   const handleSilentSave = (p) => {
+    const current = projects.find((x) => x.id === p.id);
+    const isNewProject = !current;
+    const hasNoTitle = !(p.title || '').trim();
+    if (isNewProject && hasNoTitle) return Promise.resolve();
     const isOwner = !p.ownerId || p.ownerId === currentUid;
     const isManagerOfOwner = managerAgentIds && managerAgentIds.indexOf(p.ownerId) !== -1;
     if (!isOwner && !isManagerOfOwner) {
       setSaveError('Vous ne pouvez modifier que les opérations dont vous êtes propriétaire.');
       return;
     }
-    const withOwnerProj = user && !user.isAnonymous ? withOwner({ ...p }, getCloudAuth) : p;
-    db.save(withOwnerProj).then(() => {
+    const full = current ? { ...current, ...p } : p;
+    const withOwnerProj = user && !user.isAnonymous ? withOwner({ ...full }, getCloudAuth) : full;
+    if (isNewProject && !(withOwnerProj.title || '').trim()) return Promise.resolve();
+    const promise = db.save(withOwnerProj);
+    promise.then(() => {
       setProjects((prev) => {
         const list = prev ? prev.slice() : [];
         const idx = list.findIndex((x) => x.id === withOwnerProj.id);
@@ -302,11 +321,38 @@ export default function App() {
         else list.push(withOwnerProj);
         return list;
       });
+      // Si on est en vue édition sur ce projet, mettre à jour l’état editing pour que le formulaire reflète la tâche (rappels : Terminer / Reporter)
+      setEditing((prev) => (prev && prev.id === withOwnerProj.id ? { ...prev, tasks: withOwnerProj.tasks } : prev));
       setLastSyncSuccessAt(Date.now());
       setCloudStatus('online');
     }).catch((err) => {
       setSaveError(err?.message || 'Erreur d\'enregistrement Firestore');
     });
+    return promise;
+  };
+  /** Réordonne les projets (Suivi Opérations) : une seule mise à jour state + sauvegarde de chaque projet. */
+  const handleReorderProjects = (orderedProjects) => {
+    if (!orderedProjects || orderedProjects.length === 0) return;
+    const withOwnerList = orderedProjects.map((p) => {
+      const current = projects.find((x) => x.id === p.id);
+      const full = current ? { ...current, ...p } : p;
+      return user && !user.isAnonymous ? withOwner({ ...full }, getCloudAuth) : full;
+    });
+    Promise.all(withOwnerList.map((p) => db.save(p)))
+      .then(() => {
+        setProjects((prev) => {
+          const next = prev ? prev.slice() : [];
+          withOwnerList.forEach((p) => {
+            const idx = next.findIndex((x) => x.id === p.id);
+            if (idx >= 0) next[idx] = p;
+            else next.push(p);
+          });
+          return next;
+        });
+        setLastSyncSuccessAt(Date.now());
+        setCloudStatus('online');
+      })
+      .catch((err) => setSaveError(err?.message || 'Erreur d\'enregistrement'));
   };
   const handleDelete = (id) => {
     const p = projects.find((x) => x.id === id);
@@ -348,7 +394,7 @@ export default function App() {
     }).catch((err) => setSaveError(err?.message || 'Erreur d\'enregistrement'));
   };
   const handleNav = (v) => {
-    if (v === 'table' || v === 'calendar') {
+    if (v === 'table' || v === 'calendar' || v === 'gantt') {
       setBoardSubView(v);
       setView('board');
     } else {
@@ -497,7 +543,7 @@ export default function App() {
     return opts;
   }, [managerAgentIds, managerAgentLabels, displayedProjects]);
 
-  /** Liste pour "Suivi des opérations" : UNIQUEMENT les projets dont le propriétaire est l'utilisateur connecté (confidentialité stricte). Exclut les projets globaux (isGlobalOperation). */
+  /** Liste pour "Suivi des opérations" : projets dont le propriétaire est l'utilisateur connecté. Masque "Tâches non affectées" et "Tâches générales". */
   const operationsListProjects = useMemo(() => {
     const mine = (projects || []).filter((p) => !p.ownerId || p.ownerId === currentUid);
     const withGlobalFlag = mine.map((p) => {
@@ -514,7 +560,13 @@ export default function App() {
     return withGlobalFlag.filter((p) => !isGlobalOperation(p));
   }, [projects, currentUid]);
 
-  /** Liste pour "Suivi des opérations" et Manager : on force isGlobal sur les projets détectés par titre pour les exclure strictement. */
+  /** Projets proposés dans le menu "Projet" lors de la création d'une tâche (Kanban) : exclut Tâches non affectées / Tâches générales. */
+  const taskProjectsForCreate = useMemo(
+    () => (taskProjects || []).filter((p) => !isGlobalOperation(p)),
+    [taskProjects]
+  );
+
+  /** Liste pour "Suivi des opérations" et Manager. */
   const listAndManagerProjects = useMemo(() => {
     const withGlobalFlag = displayedProjects.map((p) => {
       if (p.isGlobal === true || p.isGlobalOperation === true) return p;
@@ -527,7 +579,7 @@ export default function App() {
       if (byTitle) return { ...p, isGlobal: true };
       return p;
     });
-    return withGlobalFlag.filter((p) => !isGlobalOperation(p));
+    return withGlobalFlag;
   }, [displayedProjects]);
 
   if (user === null) {
@@ -535,9 +587,9 @@ export default function App() {
   }
 
   function renderView() {
-    const editTask = (p) => {
+    const editTask = (p, initialTab = 'tasks') => {
       setEditing(p);
-      setEditTab('tasks');
+      setEditTab(initialTab);
       setView('edit');
     };
     switch (view) {
@@ -559,6 +611,7 @@ export default function App() {
                   <option value="kanban">Kanban</option>
                   <option value="table">Tableau</option>
                   <option value="calendar">Calendrier</option>
+                  <option value="gantt">Gantt</option>
                 </select>
               </label>
               {taskFilterOptions.length > 0 && (
@@ -601,10 +654,25 @@ export default function App() {
               />
             ) : boardSubView === 'calendar' ? (
               <CalendarView projects={taskProjects} onOpenProject={handleEditProject} />
+            ) : boardSubView === 'gantt' ? (
+              <div className="glass p-6 md:p-8 rounded-2xl border border-slate-200/80 bg-white/60 shadow-sm min-w-0 w-full">
+                <p className="text-xs font-black text-slate-600 uppercase tracking-widest mb-5">Diagramme de Gantt — Suivi des opérations</p>
+                <div className="min-h-[320px] w-full min-w-0">
+                  <BoardGanttView
+                    projects={taskProjects}
+                    config={config}
+                    onSilentSave={handleSilentSave}
+                    onEditProject={handleEditProject}
+                    managerAgentIds={managerAgentIds}
+                    currentUid={currentUid}
+                    managerAgentLabels={managerAgentLabels}
+                  />
+                </div>
+              </div>
             ) : (
               <BoardView
                 projects={taskProjects}
-                projectsForCreate={taskProjects}
+                projectsForCreate={taskProjectsForCreate}
                 config={config}
                 onSilentSave={handleSilentSave}
                 onEditProject={handleEditProject}
@@ -620,7 +688,7 @@ export default function App() {
       case 'workload':
         return (
           <WorkloadView
-            projects={myProjects.filter((p) => !isGlobalOperation(p))}
+            projects={myProjects}
             config={config}
             workTimeConfig={workTimeConfig}
             onSilentSave={handleSilentSave}
@@ -671,11 +739,14 @@ export default function App() {
             onArchive={handleArchive}
             onRestore={handleRestore}
             onDuplicate={handleDuplicate}
+            onSilentSave={handleSilentSave}
+            onReorderProjects={handleReorderProjects}
+            onNewOperation={() => setView('new')}
             currentUid={currentUid}
           />
         );
       case 'edit':
-        return editing ? <ProjectForm project={editing} onSave={handleSave} onSilentSave={handleSilentSave} onCancel={() => { setEditing(null); setEditTab(null); setView('list'); }} config={config} initialTab={editTab} currentUid={currentUid} managerAgentLabels={managerAgentLabels} /> : null;
+        return editing ? <ProjectForm project={editing} onSave={handleSave} onSilentSave={handleSilentSave} onCancel={() => { setEditing(null); setEditTab(null); setView('list'); }} config={config} initialTab={editTab} currentUid={currentUid} managerAgentLabels={managerAgentLabels} managerAgentIds={managerAgentIds} /> : null;
       case 'archives':
         return (
           <ArchivesView
@@ -796,7 +867,7 @@ export default function App() {
         fileLinked={fileLinked}
         fileName={fileName}
         projects={displayedProjects}
-        listBadgeCount={myProjects.filter((p) => p.status === 'active' && !isGlobalOperation(p)).length}
+        listBadgeCount={myProjects.filter((p) => p.status === 'active').length}
         boardTaskBadgeCount={boardTaskBadgeCount}
         cloudStatus={cloudStatus}
         lastSyncSuccessAt={lastSyncSuccessAt}

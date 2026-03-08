@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { fmtDate, fmtAmt } from '../lib/utils';
+import { fmtDate, fmtAmt2Dec } from '../lib/utils';
 import ic from './icons';
 
 export default function SearchModal({ projects, onClose, onOpenProject, config, onNav }) {
@@ -80,7 +80,7 @@ export default function SearchModal({ projects, onClose, onOpenProject, config, 
             type: 'engagement',
             proj: p,
             text: e.description,
-            sub: `${p.title} — ${fmtDate(e.date)} — ${fmtAmt(parseFloat(e.amount) || 0)}`,
+            sub: `${p.title} — ${fmtDate(e.date)} — ${fmtAmt2Dec(parseFloat(e.amount) || 0)}`,
           });
         }
       });

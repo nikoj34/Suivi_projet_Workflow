@@ -33,18 +33,76 @@ export const INTENSITY_OPTIONS = [
 export const DEF_CFG = {
   defaultEmail: 'nicolas.jamet@cirad.fr',
   customLogo: null,
-  taskTags: ['Autocad', 'Chantier', 'CCTP', 'Administratif', 'Réunion'],
+  taskTags: ['Bloqué', 'URGENT', 'Autocad', 'Chantier', 'CCTP', 'Administratif', 'Réunion'],
+  /** Styles par tag (saisis dans Paramètres) : { [tagLabel]: { color: '#hex', icon: 'forbid'|'warn'|emoji } } */
+  taskTagStyles: {},
   contacts: [],
 };
 
+/** Styles des tags de tâches (couleur, fond, icône). Correspondance insensible à la casse. */
+export const TASK_TAG_STYLES = {
+  'Bloqué': { color: '#b91c1c', bg: '#fef2f2', icon: 'forbid', label: 'Bloqué' },
+  'URGENT': { color: '#6d28d9', bg: '#f5f3ff', icon: 'warn', label: 'URGENT' },
+};
+
+/** Palette de couleurs proposée pour les tags (paramètres). */
+export const TASK_TAG_COLOR_PALETTE = [
+  { id: '#b91c1c', label: 'Rouge' },
+  { id: '#dc2626', label: 'Rouge vif' },
+  { id: '#ea580c', label: 'Orange' },
+  { id: '#f59e0b', label: 'Ambre' },
+  { id: '#eab308', label: 'Jaune' },
+  { id: '#22c55e', label: 'Vert' },
+  { id: '#15803d', label: 'Vert foncé' },
+  { id: '#0ea5e9', label: 'Bleu clair' },
+  { id: '#3b82f6', label: 'Bleu' },
+  { id: '#6366f1', label: 'Indigo' },
+  { id: '#6d28d9', label: 'Violet' },
+  { id: '#8b5cf6', label: 'Violet clair' },
+  { id: '#ec4899', label: 'Rose' },
+  { id: '#64748b', label: 'Ardoise' },
+  { id: '#007A78', label: 'Teal' },
+];
+
+/** Options d’icône / emoji pour les tags. Labels courts et uniformes (emoji ou —). */
+export const TASK_TAG_ICON_OPTIONS = [
+  { id: '', label: '—' },
+  { id: 'forbid', label: '🚫' },
+  { id: 'warn', label: '⚠️' },
+  { id: 'build', label: '🏗' },
+  { id: 'gantt', label: '📊' },
+  { id: 'cal', label: '📅' },
+  { id: 'filetext', label: '📄' },
+  { id: 'clip', label: '📋' },
+  { id: 'pin', label: '📍' },
+  { id: 'usr', label: '👤' },
+  { id: 'book', label: '📕' },
+  { id: 'ok', label: '✅' },
+  { id: '🚫', label: '🚫' },
+  { id: '⚠️', label: '⚠️' },
+  { id: '🏗️', label: '🏗️' },
+  { id: '📐', label: '📐' },
+  { id: '📅', label: '📅' },
+  { id: '📋', label: '📋' },
+  { id: '👷', label: '👷' },
+  { id: '🚧', label: '🚧' },
+  { id: '📦', label: '📦' },
+  { id: '🔧', label: '🔧' },
+  { id: '📄', label: '📄' },
+  { id: '🏢', label: '🏢' },
+  { id: '✅', label: '✅' },
+  { id: '⏳', label: '⏳' },
+  { id: '🔥', label: '🔥' },
+];
+
 export const BOARD_COLS = [
+  { id: 'En réserve / Idées', label: 'En réserve / Idées', color: '#8b5cf6', bg: '#f5f3ff', accent: 'rgba(139,92,246,0.12)', dot: '#8b5cf6' },
   { id: 'À faire', label: 'À faire', color: '#64748b', bg: '#f8fafc', accent: 'rgba(100,116,139,0.12)', dot: '#94a3b8' },
   { id: 'En cours', label: 'En cours', color: '#3b82f6', bg: '#eff6ff', accent: 'rgba(59,130,246,0.12)', dot: '#3b82f6' },
   { id: 'En attente', label: 'En attente', color: '#f59e0b', bg: '#fffbeb', accent: 'rgba(245,158,11,0.12)', dot: '#f59e0b' },
   { id: 'À valider', label: 'À valider', color: '#6366f1', bg: '#eef2ff', accent: 'rgba(99,102,241,0.12)', dot: '#6366f1' },
   { id: 'À retravailler', label: 'À retravailler', color: '#dc2626', bg: '#fef2f2', accent: 'rgba(220,38,38,0.12)', dot: '#dc2626' },
   { id: 'Refusé', label: 'Refusé', color: '#374151', bg: '#f3f4f6', accent: 'rgba(55,65,81,0.15)', dot: '#4b5563' },
-  { id: 'Validé', label: 'Validé', color: '#16a34a', bg: '#dcfce7', accent: 'rgba(22,163,74,0.12)', dot: '#16a34a' },
   { id: 'Terminé', label: 'Terminé', color: '#15803d', bg: '#f0fdf4', accent: 'rgba(21,128,61,0.12)', dot: '#15803d' },
 ];
 
@@ -79,5 +137,7 @@ export const SUB_MAP = {
 };
 
 export const TYPES_TRAVAUX = ['Gros œuvre', 'Second œuvre', 'VRD', 'Électricité', 'Plomberie / CVC', 'Menuiserie', 'Peinture / Revêtements', 'Toiture / Étanchéité', 'Espaces verts', 'Démolition', 'Réhabilitation', 'Réseaux', 'Sécurité incendie', 'Autre'];
+/** Options pour le champ "Type de projet" (Suivi opération / Général). */
+export const TYPES_PROJET = ['Travaux', 'Marchés', 'Études', 'Maintenance', 'Consultation', 'Autre'];
 export const TASK_CATS = ['Administrative', 'Technique', 'Contrôle', 'Réunion', 'Livraison', 'Autre'];
 export const ROLES_INTERV = ['Maître d\'ouvrage', 'Maître d\'œuvre', 'Bureau de contrôle', 'CSPS', 'Entreprise GO', 'Entreprise lots', 'Géomètre', 'Architecte', 'Bureau d\'études', 'Assureur', 'Autre'];

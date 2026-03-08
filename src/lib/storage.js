@@ -1,6 +1,6 @@
 import { getCloudDb, getCloudAuth } from './firebase';
 import { SK, DEF_CFG } from './constants';
-import { projectsKey, withOwner } from './utils';
+import { projectsKey, withOwner, evaluateAmountExpression } from './utils';
 
 function _projectsKey() {
   return projectsKey(getCloudAuth);
@@ -122,6 +122,14 @@ const idb = {
 let _fh = null;
 let _onFSChange = null;
 
+function _toNum(v) {
+  const s = String(v ?? '').trim().replace(/,/g, '.');
+  const ex = evaluateAmountExpression(s);
+  if (ex !== null) return ex;
+  const n = parseFloat(s);
+  return isNaN(n) ? 0 : n;
+}
+
 export const db = {
   all: () => {
     try {
@@ -131,16 +139,17 @@ export const db = {
     }
   },
   save: (p) => {
+    if (!p || !p.id) return Promise.reject(new Error('Projet invalide'));
     const normLots = (p.lots || []).map((l) => ({
       ...l,
-      montant: parseFloat(String(l.montant || '').replace(',', '.')) || 0,
-      pourcentage: parseFloat(String(l.pourcentage || '').replace(',', '.')) || 0,
+      montant: _toNum(l.montant),
+      pourcentage: _toNum(l.pourcentage),
     }));
     const n = {
       ...p,
-      budgetInitial: parseFloat(String(p.budgetInitial || '').replace(',', '.')) || 0,
+      budgetInitial: _toNum(p.budgetInitial),
       lots: normLots,
-      expenses: (p.expenses || []).map((e) => ({ ...e, amount: parseFloat(String(e.amount).replace(',', '.')) || 0 })),
+      expenses: (p.expenses || []).map((e) => ({ ...e, amount: _toNum(e.amount) })),
     };
     const nCloud = _withOwner(n);
     nCloud.updatedAt = new Date().toISOString();
@@ -152,8 +161,9 @@ export const db = {
       else a.push(nCloud);
       localStorage.setItem(_projectsKey(), JSON.stringify(a));
       localStorage.setItem(SK.BACKUP, new Date().toISOString());
-      fs.write();
+      // fs.write() est appelé et attendu après writeLocal pour garantir la persistance fichier
     };
+    const flushFile = () => (fs.linked() ? fs.write() : Promise.resolve());
     if (cloudDb) {
       return cloudDb
         .collection('projects')
@@ -161,15 +171,16 @@ export const db = {
         .set(JSON.parse(JSON.stringify(nCloud)))
         .then(() => {
           writeLocal();
+          return flushFile();
         })
         .catch((e) => {
           console.error('Firebase save error:', e);
           writeLocal();
-          return Promise.reject(e);
+          return flushFile().then(() => Promise.reject(e));
         });
     }
     writeLocal();
-    return Promise.resolve();
+    return flushFile();
   },
   del: (id) => {
     const cloudDb = getCloudDb();

@@ -1,6 +1,22 @@
-import { SK, PRIORITIES, BOARD_COLS } from './constants';
+import { SK, PRIORITIES, BOARD_COLS, TASK_TAG_STYLES } from './constants';
+
+/** Évalue une expression arithmétique sûre (chiffres, +, -, *, /, parenthèses). Retourne un number ou null si invalide. */
+export function evaluateAmountExpression(str) {
+  if (str == null || typeof str !== 'string') return null;
+  const s = str.trim().replace(/,/g, '.').replace(/\s/g, '');
+  if (!s) return null;
+  if (!/^[\d.\s+*/()\-]+$/.test(s)) return null;
+  try {
+    const n = new Function('return (' + s + ')')();
+    return typeof n === 'number' && isFinite(n) ? n : null;
+  } catch {
+    return null;
+  }
+}
 
 export const fmtAmt = (v) => v ? parseFloat(v).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' €' : '—';
+/** Montant avec 2 décimales et sigle € (partout sauf dashboard). */
+export const fmtAmt2Dec = (v) => v != null && v !== '' ? parseFloat(v).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €' : '—';
 export const fmtDate = (d) => d ? new Date(d + 'T00:00:00').toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 export const daysBetween = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000);
 export const today = () => new Date().toISOString().split('T')[0];
@@ -69,10 +85,36 @@ export function isGlobalOperation(p) {
 
 export const getPriority = (p) => PRIORITIES.find((x) => x.id === p) || PRIORITIES[0];
 
+/** Retourne le style (couleur, bg, icon, label) pour un tag de tâche.
+ * Utilise config.taskTagStyles si fourni, sinon TASK_TAG_STYLES. Correspondance insensible à la casse. */
+export function getTaskTagStyle(tag, config) {
+  if (!tag || typeof tag !== 'string') return null;
+  const t = tag.trim();
+  const tagStyles = config?.taskTagStyles || {};
+  const keyConfig = Object.keys(tagStyles).find((k) => k.toLowerCase() === t.toLowerCase());
+  if (keyConfig && tagStyles[keyConfig]) {
+    const s = tagStyles[keyConfig];
+    const color = s.color || '#4f46e5';
+    const bg = s.bg || hexToRgba(color, 0.15);
+    return { color, bg, icon: s.icon ?? '', label: s.label ?? tag };
+  }
+  const key = Object.keys(TASK_TAG_STYLES || {}).find((k) => k.toLowerCase() === t.toLowerCase());
+  return key ? TASK_TAG_STYLES[key] : null;
+}
+
+function hexToRgba(hex, a) {
+  if (!hex || hex.length < 7) return 'rgba(79,70,229,0.15)';
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
 /** Définition visuelle (couleur, accent) pour une colonne de statut Kanban/Table. */
 export function getColDef(status, done) {
   if (done || status === 'Terminé') return BOARD_COLS[BOARD_COLS.length - 1];
-  return BOARD_COLS.find((c) => c.id === status) || BOARD_COLS[0];
+  const resolved = status === 'Validé' ? 'À faire' : status;
+  return BOARD_COLS.find((c) => c.id === resolved) || BOARD_COLS[0];
 }
 
 export function BLANK() {
@@ -86,7 +128,7 @@ export function BLANK() {
     budgetMode: 'par_lot',
     budgetInitial: '',
     lots: [],
-    dateOS: '',
+    dateOS: today(),
     dateLivraisonPrev: '',
     avancementPhysique: '',
     intensity: 2,

@@ -130,3 +130,24 @@ body {
     display: none !important;
   }
 }
+
+/* Ascenseur horizontal du Gantt : toujours visible et lisible */
+.gantt-h-scroll {
+  overflow-x: scroll;
+  scrollbar-width: auto;
+  scrollbar-color: #94a3b8 #e2e8f0;
+}
+.gantt-h-scroll::-webkit-scrollbar {
+  height: 12px;
+}
+.gantt-h-scroll::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 6px;
+}
+.gantt-h-scroll::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 6px;
+}
+.gantt-h-scroll::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
