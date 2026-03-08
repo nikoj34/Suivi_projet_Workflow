@@ -229,9 +229,12 @@ export default function ProjectList({
             >
               <div
                 onMouseDown={isKanbanMode ? (e) => handleMouseDown(e, p) : undefined}
+                onClick={isArchive && onEdit ? () => onEdit(p) : undefined}
+                role={isArchive && onEdit ? 'button' : undefined}
                 className={`
                   glass p-5 group transition-all min-h-[140px] h-full
                   ${isKanbanMode ? 'cursor-grab active:cursor-grabbing' : ''}
+                  ${isArchive && onEdit ? 'cursor-pointer' : ''}
                   ${isDragging ? 'opacity-30 scale-[0.98] shadow-none' : ''}
                   ${isDropTarget ? 'ring-2 ring-[#007A78] ring-offset-2 bg-teal-50/50' : ''}
                   hover:bg-white/65
@@ -255,7 +258,7 @@ export default function ProjectList({
                     )}
                     <div className="min-w-0 flex-1">
                       <h4
-                        onClick={() => onEdit(p)}
+                        onClick={(e) => { if (isArchive) e.stopPropagation(); onEdit(p); }}
                         className="text-base font-black text-slate-800 cursor-pointer hover:text-[#007A78] transition-colors break-words min-w-0"
                         title={isArchive ? 'Cliquer pour consulter (lecture seule)' : 'Cliquer pour modifier l\'opération'}
                       >
@@ -390,7 +393,7 @@ export default function ProjectList({
                     <>
                       <button
                         type="button"
-                        onClick={() => onEdit(p)}
+                        onClick={(e) => { e.stopPropagation(); onEdit(p); }}
                         className="p-1.5 bg-white rounded-lg text-slate-400 hover:text-[#007A78] transition-all shadow-sm border border-slate-100"
                         title="Consulter"
                       >
@@ -398,7 +401,7 @@ export default function ProjectList({
                       </button>
                       <button
                         type="button"
-                        onClick={() => onRestore(p.id)}
+                        onClick={(e) => { e.stopPropagation(); onRestore(p.id); }}
                         className="p-1.5 bg-white rounded-lg text-slate-400 hover:text-[#007A78] transition-all shadow-sm border border-slate-100"
                         title="Restaurer"
                       >
@@ -409,7 +412,7 @@ export default function ProjectList({
                   {isOwner && (
                     <button
                       type="button"
-                      onClick={() => onDelete(p.id)}
+                      onClick={(e) => { e.stopPropagation(); onDelete(p.id); }}
                       className="p-1.5 bg-white rounded-lg text-slate-400 hover:text-red-500 transition-all shadow-sm border border-slate-100"
                       title="Supprimer"
                     >

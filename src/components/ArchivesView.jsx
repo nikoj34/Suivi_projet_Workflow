@@ -135,7 +135,11 @@ export default function ArchivesView({ projects, onEdit, onDelete, onArchive, on
                 {g.items.map((t) => (
                   <div
                     key={t.id}
-                    className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-lg bg-white/60 border border-slate-100 hover:border-slate-200 transition-colors"
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onEdit && t._proj && onEdit(t._proj)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onEdit && t._proj && onEdit(t._proj); } }}
+                    className="flex items-center justify-between gap-3 py-2.5 px-3 rounded-lg bg-white/60 border border-slate-100 hover:border-slate-200 hover:bg-white/80 cursor-pointer transition-colors group"
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-slate-700 truncate">
@@ -153,7 +157,7 @@ export default function ArchivesView({ projects, onEdit, onDelete, onArchive, on
                     {onSilentSave && t._proj && (
                       <button
                         type="button"
-                        onClick={() => handleDeleteArchivedTask(t)}
+                        onClick={(e) => { e.stopPropagation(); handleDeleteArchivedTask(t); }}
                         className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50/80 transition-colors flex-shrink-0"
                         title="Supprimer"
                       >

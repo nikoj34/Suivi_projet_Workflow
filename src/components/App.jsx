@@ -51,6 +51,7 @@ export default function App() {
   const [detailTaskFromWorkflow, setDetailTaskFromWorkflow] = useState(null);
   const [openNewTaskModal, setOpenNewTaskModal] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [openFromArchives, setOpenFromArchives] = useState(false);
 
   const projectsRef = useRef([]);
   useEffect(() => {
@@ -763,12 +764,34 @@ export default function App() {
           />
         );
       case 'edit':
-        return editing ? <ProjectForm project={editing} onSave={handleSave} onSilentSave={handleSilentSave} onCancel={() => { setEditing(null); setEditTab(null); setView('list'); }} config={config} initialTab={editTab} currentUid={currentUid} managerAgentLabels={managerAgentLabels} managerAgentIds={managerAgentIds} /> : null;
+        return editing ? (
+          <ProjectForm
+            project={editing}
+            onSave={handleSave}
+            onSilentSave={handleSilentSave}
+            onCancel={() => {
+              setEditing(null);
+              setEditTab(null);
+              setView(openFromArchives ? 'archives' : 'list');
+              setOpenFromArchives(false);
+            }}
+            config={config}
+            initialTab={editTab}
+            currentUid={currentUid}
+            managerAgentLabels={managerAgentLabels}
+            managerAgentIds={managerAgentIds}
+          />
+        ) : null;
       case 'archives':
         return (
           <ArchivesView
             projects={operationsListProjects}
-            onEdit={handleEditProject}
+            onEdit={(p) => {
+              setEditing(p);
+              setEditTab(null);
+              setView('edit');
+              setOpenFromArchives(true);
+            }}
             onDelete={handleDelete}
             onArchive={handleArchive}
             onRestore={handleRestore}
