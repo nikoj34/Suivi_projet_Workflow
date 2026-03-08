@@ -12,7 +12,6 @@ export default function SearchModal({ projects, onClose, onOpenProject, config, 
     active.forEach((p) => {
       if (
         (p.title || '').toLowerCase().includes(ql) ||
-        (p.access?.location?.toLowerCase?.()?.includes?.(ql)) ||
         (p.typeTravaux || '').toLowerCase().includes(ql)
       ) {
         results.push({

@@ -10,11 +10,6 @@ export const DEFAULT_WORKTIME = {
   workHours: { mon: 7.5, tue: 7.5, wed: 7.5, thu: 7.5, fri: 7.5 },
 };
 
-export const WORKFLOW_MANAGERS = [
-  { id: 'SAISIS_ICI_L_UID_DU_MANAGER_1', name: 'Jean DUPONT (Directeur)' },
-  { id: 'SAISIS_ICI_L_UID_DU_MANAGER_2', name: 'Marie MARTIN (Chef de service)' },
-];
-
 export const ESTIMATED_DURATION_OPTIONS = [
   { value: 0, label: 'Non estimé' },
   { value: 0.25, label: 'S - Rapide (< 15 min)' },

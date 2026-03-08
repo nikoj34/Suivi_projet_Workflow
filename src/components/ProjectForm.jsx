@@ -1298,6 +1298,7 @@ export default function ProjectForm({ project, onSave, onSilentSave, onCancel, c
   const chantierUndoRedoRef = useRef(false);
   const chantierApplyUndoRedoRef = useRef(false);
   const [chantierUndoState, setChantierUndoState] = useState({ history: [], index: -1 });
+  const [chantierFontSize, setChantierFontSize] = useState('14px');
   const [generalLeftColWidth, setGeneralLeftColWidth] = useState(380);
   const [isLg, setIsLg] = useState(typeof window !== 'undefined' && window.innerWidth >= 1024);
   useEffect(() => {
@@ -1326,6 +1327,50 @@ export default function ProjectForm({ project, onSave, onSilentSave, onCancel, c
     document.addEventListener('mouseup', onUp);
   };
   const MAX_CHANTIER_HISTORY = 50;
+
+  const CHANTIER_FONT_SIZES = ['12px', '14px', '16px', '18px', '20px'];
+  const CHANTIER_BASE_FONT_SIZE = '14px';
+  const getFontSizePx = (node) => {
+    if (!node || !node.nodeType) return 14;
+    const el = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
+    if (!el) return 14;
+    const comp = window.getComputedStyle(el);
+    const num = parseFloat(comp.fontSize);
+    return Number.isFinite(num) ? num : 14;
+  };
+  const getClosestChantierFontSize = (px) => {
+    const options = [12, 14, 16, 18, 20];
+    const closest = options.reduce((a, b) => (Math.abs(a - px) <= Math.abs(b - px) ? a : b));
+    return closest + 'px';
+  };
+  const applyChantierFontSizeToSelection = (newSize) => {
+    const el = chantierEditorRef.current;
+    if (!el) return;
+    const sel = document.getSelection();
+    if (!sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return;
+    const range = sel.getRangeAt(0);
+    if (range.collapsed) return;
+    try {
+      const span = document.createElement('span');
+      span.style.fontSize = newSize;
+      range.surroundContents(span);
+    } catch {
+      const fragment = range.extractContents();
+      const span = document.createElement('span');
+      span.style.fontSize = newSize;
+      span.appendChild(fragment);
+      range.insertNode(span);
+    }
+    setChantierFontSize(newSize);
+    const newContent = el.innerHTML;
+    setChantierUndoState((prev) => {
+      const arr = [...prev.history.slice(0, prev.index + 1), newContent];
+      const history = arr.length > MAX_CHANTIER_HISTORY ? arr.slice(-MAX_CHANTIER_HISTORY) : arr;
+      return { history, index: history.length - 1 };
+    });
+    upd({ chantierCR: newContent });
+  };
+
   useEffect(() => {
     const close = (e) => {
       if (sitesDropdownRef.current && !sitesDropdownRef.current.contains(e.target)) setSitesDropdownOpen(false);
@@ -1352,6 +1397,19 @@ export default function ProjectForm({ project, onSave, onSilentSave, onCancel, c
     setTimeout(() => { chantierUndoRedoRef.current = false; }, 0);
     chantierApplyUndoRedoRef.current = false;
   }, [chantierUndoState]);
+  useEffect(() => {
+    const el = chantierEditorRef.current;
+    if (!el) return;
+    const onSelectionChange = () => {
+      if (!document.contains(el)) return;
+      const sel = document.getSelection();
+      if (!sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) return;
+      const px = getFontSizePx(sel.anchorNode);
+      setChantierFontSize(getClosestChantierFontSize(px));
+    };
+    document.addEventListener('selectionchange', onSelectionChange);
+    return () => document.removeEventListener('selectionchange', onSelectionChange);
+  }, []);
   const todayStr = today();
   const tasks = form.tasks || [];
   const logo = config?.customLogo ?? null;
@@ -1742,12 +1800,26 @@ export default function ProjectForm({ project, onSave, onSilentSave, onCancel, c
                   {['#000000','#c0392b','#2980b9','#27ae60'].map((hex) => (
                     <button key={hex} type="button" className="w-5 h-5 rounded border border-slate-300 hover:ring-2 hover:ring-[#007A78]" style={{ backgroundColor: hex }} title={hex} onClick={() => document.execCommand('foreColor', false, hex)} />
                   ))}
+                  <span className="w-px h-4 bg-slate-200 mx-0.5 ml-2" />
+                  <label className="text-slate-400 text-[10px] uppercase flex items-center gap-1.5">
+                    <span>Taille</span>
+                    <select
+                      value={chantierFontSize}
+                      onChange={(e) => applyChantierFontSizeToSelection(e.target.value)}
+                      className="text-xs font-bold border border-slate-200 rounded px-2 py-0.5 bg-white cursor-pointer"
+                      title="Taille des caractères (sélectionnez du texte puis choisissez une taille)"
+                    >
+                      {CHANTIER_FONT_SIZES.map((size) => (
+                        <option key={size} value={size}>{size.replace('px', '')} px</option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
                 <div
                   ref={chantierEditorRef}
                   contentEditable
                   className="inp flex-1 min-h-[300px] p-3 border-0 focus:ring-0 focus:outline-none"
-                  style={{ minHeight: 300 }}
+                  style={{ minHeight: 300, fontSize: CHANTIER_BASE_FONT_SIZE }}
                   data-placeholder="Comptes-rendus..."
                   onInput={(e) => {
                     if (chantierUndoRedoRef.current) return;

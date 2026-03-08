@@ -74,6 +74,9 @@ export default function TableView({ projects, config, onSilentSave, onEditProjec
       } else if (sortCol === 'assignee') {
         va = a.assignee || '';
         vb = b.assignee || '';
+      } else if (sortCol === 'project') {
+        va = a._projTitle || '';
+        vb = b._projTitle || '';
       } else {
         va = a.description || '';
         vb = b.description || '';
