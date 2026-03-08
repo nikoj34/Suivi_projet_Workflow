@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { getCloudDb, getCloudAuth } from '../lib/firebase';
 import { db, fs, backup } from '../lib/storage';
 import { SK, DEF_CFG, DEFAULT_WORKTIME } from '../lib/constants';
@@ -52,6 +52,11 @@ export default function App() {
   const [openNewTaskModal, setOpenNewTaskModal] = useState(false);
   const [saveError, setSaveError] = useState(null);
 
+  const projectsRef = useRef([]);
+  useEffect(() => {
+    projectsRef.current = projects;
+  }, [projects]);
+
   const cloudDb = getCloudDb();
   const cloudAuth = getCloudAuth();
 
@@ -60,10 +65,10 @@ export default function App() {
     setFileName(fs.name());
     setLastBackup(localStorage.getItem(SK.BACKUP));
   };
-  const refresh = () => {
+  const refresh = useCallback(() => {
     setProjects(db.all());
     setLastBackup(localStorage.getItem(SK.BACKUP));
-  };
+  }, []);
 
   const isHostedAuth = typeof location !== 'undefined' && location.protocol === 'https:' && (location.hostname.endsWith('.web.app') || location.hostname.endsWith('.firebaseapp.com'));
 
@@ -118,20 +123,18 @@ export default function App() {
   }, [user, cloudDb]);
 
   useEffect(() => {
-    let timeoutId;
-    const checkAuth = () => {
-      if (cloudAuth) {
-        cloudAuth.onAuthStateChanged((u) => setUser(u));
-        return;
-      }
-      timeoutId = setTimeout(checkAuth, 100);
-    };
-    checkAuth();
+    if (!cloudAuth) {
+      const timeoutId = setTimeout(() => {
+        setUser((prev) => (prev === undefined ? null : prev));
+      }, 2000);
+      return () => clearTimeout(timeoutId);
+    }
+    const unsubscribe = cloudAuth.onAuthStateChanged((u) => setUser(u));
     const fallback = setTimeout(() => {
       setUser((prev) => (prev === undefined ? null : prev));
     }, 2000);
     return () => {
-      clearTimeout(timeoutId);
+      unsubscribe();
       clearTimeout(fallback);
     };
   }, [cloudAuth]);
@@ -204,7 +207,12 @@ export default function App() {
           snapshot.forEach((docSnap) => cloudProjects.push(docSnap.data()));
           const cloudIds = {};
           cloudProjects.forEach((cp) => (cloudIds[cp.id] = true));
+          const currentInState = projectsRef.current || [];
           const merged = cloudProjects.map((cp) => {
+            const inState = currentInState.find((p) => p.id === cp.id);
+            if (inState && inState.updatedAt && cp.updatedAt && new Date(inState.updatedAt) > new Date(cp.updatedAt)) {
+              return inState;
+            }
             const local = localProjs.find((p) => p.id === cp.id);
             if (local && local.updatedAt && cp.updatedAt) {
               if (new Date(cp.updatedAt) > new Date(local.updatedAt)) return { ...local, ...cp };
@@ -276,6 +284,8 @@ export default function App() {
     return () => window.removeEventListener('keydown', h);
   }, [user]);
 
+  const currentUid = user && user.uid ? user.uid : 'local';
+
   const handleLoaded = () => {
     setShowStartup(false);
     refresh();
@@ -283,7 +293,7 @@ export default function App() {
     refreshFS();
   };
   const handleFresh = () => setShowStartup(false);
-  const handleSave = (data) => {
+  const handleSave = useCallback((data) => {
     if (data.ownerId && data.ownerId !== currentUid) {
       setSaveError('Vous ne pouvez modifier que les opérations dont vous êtes propriétaire.');
       return;
@@ -297,8 +307,8 @@ export default function App() {
     }).catch((err) => {
       setSaveError(err?.message || 'Erreur d\'enregistrement');
     });
-  };
-  const handleSilentSave = (p) => {
+  }, [currentUid, refresh]);
+  const handleSilentSave = useCallback((p) => {
     const current = projects.find((x) => x.id === p.id);
     const isNewProject = !current;
     const hasNoTitle = !(p.title || '').trim();
@@ -312,24 +322,32 @@ export default function App() {
     const full = current ? { ...current, ...p } : p;
     const withOwnerProj = user && !user.isAnonymous ? withOwner({ ...full }, getCloudAuth) : full;
     if (isNewProject && !(withOwnerProj.title || '').trim()) return Promise.resolve();
-    const promise = db.save(withOwnerProj);
+    const withOwnerProjToSave = { ...withOwnerProj, updatedAt: new Date().toISOString() };
+    const nextList = (projects || []).slice();
+    const idx = nextList.findIndex((x) => x.id === withOwnerProjToSave.id);
+    if (idx >= 0) nextList[idx] = withOwnerProjToSave;
+    else nextList.push(withOwnerProjToSave);
+    projectsRef.current = nextList;
+    setProjects(nextList);
+    setEditing((prev) => (prev && prev.id === withOwnerProjToSave.id ? { ...prev, tasks: withOwnerProjToSave.tasks } : prev));
+    const promise = db.save(withOwnerProjToSave);
     promise.then(() => {
       setProjects((prev) => {
         const list = prev ? prev.slice() : [];
-        const idx = list.findIndex((x) => x.id === withOwnerProj.id);
-        if (idx >= 0) list[idx] = withOwnerProj;
-        else list.push(withOwnerProj);
+        const idx = list.findIndex((x) => x.id === withOwnerProjToSave.id);
+        if (idx >= 0) list[idx] = withOwnerProjToSave;
+        else list.push(withOwnerProjToSave);
         return list;
       });
       // Si on est en vue édition sur ce projet, mettre à jour l’état editing pour que le formulaire reflète la tâche (rappels : Terminer / Reporter)
-      setEditing((prev) => (prev && prev.id === withOwnerProj.id ? { ...prev, tasks: withOwnerProj.tasks } : prev));
+      setEditing((prev) => (prev && prev.id === withOwnerProjToSave.id ? { ...prev, tasks: withOwnerProjToSave.tasks } : prev));
       setLastSyncSuccessAt(Date.now());
       setCloudStatus('online');
     }).catch((err) => {
       setSaveError(err?.message || 'Erreur d\'enregistrement Firestore');
     });
     return promise;
-  };
+  }, [projects, currentUid, managerAgentIds, user]);
   /** Réordonne les projets (Suivi Opérations) : une seule mise à jour state + sauvegarde de chaque projet. */
   const handleReorderProjects = (orderedProjects) => {
     if (!orderedProjects || orderedProjects.length === 0) return;
@@ -458,7 +476,6 @@ export default function App() {
   };
 
   const unclaimed = (projects || []).filter((p) => !p.ownerId);
-  const currentUid = user && user.uid ? user.uid : 'local';
   const myProjects = (projects || []).filter((p) => !p.ownerId || p.ownerId === currentUid);
   const displayedProjects = (projects || []).filter(
     (p) =>

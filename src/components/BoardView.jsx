@@ -114,9 +114,7 @@ export default function BoardView({ projects, projectsForCreate, config, onSilen
   const onDrop = (colId) => {
     if (!dragTask) { setDragOver(null); return; }
     if (!canDragTask(dragTask)) { setDragOver(null); return; }
-    /* Interdiction absolue : aucun drop dans la colonne "À valider". Seul le bouton dans ItemDetailPanel peut y envoyer une tâche. */
-    if (colId === 'À valider') { setDragOver(null); return; }
-    if (dragTask.status === 'À valider') moveTask(dragTask, colId, { clearValidation: true });
+    if (dragTask.status === 'À valider' && colId !== 'À valider') moveTask(dragTask, colId, { clearValidation: true });
     else moveTask(dragTask, colId);
     setDragOver(null);
   };

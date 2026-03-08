@@ -27,7 +27,7 @@ export const isTaskArchived = (t) => {
   const d = taskCompletedAt(t);
   if (!d) return false;
   const dateStr = d.indexOf('T') >= 0 ? d.split('T')[0] : d;
-  return daysBetween(dateStr, today()) >= 5;
+  return daysBetween(dateStr, today()) >= 3;
 };
 
 export const projBudget = (p) => {

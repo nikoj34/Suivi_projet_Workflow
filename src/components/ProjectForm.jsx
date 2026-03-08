@@ -576,13 +576,13 @@ function PlanningTab({ form, upd }) {
   );
 }
 
-function TasksTab({ form, upd, project, tasks, todayStr, config, showNewTaskModal, setShowNewTaskModal, newTaskOp, setNewTaskOp, taskFilter, setTaskFilter, readOnly, managerAgentIds, currentUid, managerAgentLabels }) {
+function TasksTab({ form, upd, project, tasks, todayStr, config, showNewTaskModal, setShowNewTaskModal, newTaskOp, setNewTaskOp, taskFilter, setTaskFilter, readOnly, showAllTasks, managerAgentIds, currentUid, managerAgentLabels }) {
   const [detailTask, setDetailTask] = useState(null);
   const [dragTask, setDragTask] = useState(null);
   const [dragOver, setDragOver] = useState(null);
 
   const displayTasks = tasks.filter((t) => {
-    if (isTaskArchived(t)) return false;
+    if (!showAllTasks && isTaskArchived(t)) return false;
     const isDone = t.status === 'Terminé' || t.done === true;
     if (taskFilter === 'late') return t.dueDate && t.dueDate < todayStr && !isDone;
     if (taskFilter === 'week') {
@@ -614,7 +614,7 @@ function TasksTab({ form, upd, project, tasks, todayStr, config, showNewTaskModa
   }, [displayTasks, projId, projTitle]);
 
   const isManager = managerAgentIds && managerAgentIds.length > 0;
-  const canDragTask = (task) => task.status !== 'À valider' || isManager;
+  const canDragTask = (task) => !readOnly && (task.status !== 'À valider' || isManager);
 
   const moveTask = (task, newStatus, opts = {}) => {
     const isDone = newStatus === 'Terminé';
@@ -637,8 +637,7 @@ function TasksTab({ form, upd, project, tasks, todayStr, config, showNewTaskModa
   const onDrop = (colId) => {
     if (!dragTask) { setDragOver(null); return; }
     if (!canDragTask(dragTask)) { setDragOver(null); return; }
-    if (colId === 'À valider') { setDragOver(null); return; }
-    if (dragTask.status === 'À valider') moveTask(dragTask, colId, { clearValidation: true });
+    if (dragTask.status === 'À valider' && colId !== 'À valider') moveTask(dragTask, colId, { clearValidation: true });
     else moveTask(dragTask, colId);
     setDragOver(null);
   };
@@ -1161,8 +1160,9 @@ function TBtn({ id, label, Icon, tab, setTab }) {
 }
 
 export default function ProjectForm({ project, onSave, onSilentSave, onCancel, config, initialTab, currentUid, managerAgentLabels, managerAgentIds }) {
-  const readOnly = project && project.ownerId != null && (currentUid || 'local') !== 'local' && project.ownerId !== (currentUid || 'local');
-  const ownerDisplayName = readOnly && project ? (formatAgentDisplayName((managerAgentLabels && project.ownerId && managerAgentLabels[project.ownerId]) || (project.ownerEmail || '')) || 'Un agent') : '';
+  const readOnly = (project && project.status === 'archived') || (project && project.ownerId != null && (currentUid || 'local') !== 'local' && project.ownerId !== (currentUid || 'local'));
+  const isArchivedProject = project && project.status === 'archived';
+  const ownerDisplayName = readOnly && project && !isArchivedProject ? (formatAgentDisplayName((managerAgentLabels && project.ownerId && managerAgentLabels[project.ownerId]) || (project.ownerEmail || '')) || 'Un agent') : '';
   const [tab, setTab] = useState(initialTab || 'general');
   const [form, setForm] = useState(() => {
     const b = project ? { ...BLANK(), ...project } : BLANK();
@@ -1221,6 +1221,8 @@ export default function ProjectForm({ project, onSave, onSilentSave, onCancel, c
   const isNew = !project;
   const formRef = useRef(form);
   const projectIdRef = useRef(project?.id);
+  const onSilentSaveRef = useRef(onSilentSave);
+  onSilentSaveRef.current = onSilentSave;
   const isNewRef = useRef(isNew);
   isNewRef.current = isNew;
   const savingStartedAtRef = useRef(null);
@@ -1241,7 +1243,8 @@ export default function ProjectForm({ project, onSave, onSilentSave, onCancel, c
     const t = setTimeout(() => {
       const payload = { ...formRef.current };
       if (chantierEditorRef.current) payload.chantierCR = chantierEditorRef.current.innerHTML;
-      if (onSilentSave) onSilentSave(payload);
+      const saveFn = onSilentSaveRef.current;
+      if (saveFn) saveFn(payload);
       const elapsed = Date.now() - (savingStartedAtRef.current || 0);
       const minSavingMs = 1000;
       const showSavedAfter = Math.max(0, minSavingMs - elapsed);
@@ -1256,32 +1259,34 @@ export default function ProjectForm({ project, onSave, onSilentSave, onCancel, c
       }
     }, 2000);
     return () => clearTimeout(t);
-  }, [form, isNew, onSilentSave, readOnly]);
+  }, [form, isNew, readOnly]);
 
   useEffect(() => {
-    if (readOnly || !onSilentSave) return;
+    if (readOnly) return;
     const onVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         const payload = { ...formRef.current };
         if (isNewRef.current && !(payload.title || '').trim()) return;
         if (chantierEditorRef.current) payload.chantierCR = chantierEditorRef.current.innerHTML;
-        onSilentSave(payload);
+        const saveFn = onSilentSaveRef.current;
+        if (saveFn) saveFn(payload);
       }
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
-  }, [onSilentSave, readOnly]);
+  }, [readOnly]);
 
   useEffect(() => {
-    if (readOnly || !onSilentSave) return;
+    if (readOnly) return;
     return () => {
-      if (!formRef.current?.id) return;
+      const saveFn = onSilentSaveRef.current;
+      if (!saveFn || !formRef.current?.id) return;
       const payload = { ...formRef.current };
       if (isNewRef.current && !(payload.title || '').trim()) return;
       if (chantierEditorRef.current) payload.chantierCR = chantierEditorRef.current.innerHTML;
-      onSilentSave(payload);
+      saveFn(payload);
     };
-  }, [onSilentSave, readOnly]);
+  }, [readOnly]);
   const [taskFilter, setTaskFilter] = useState('all');
   const [showNewTaskModal, setShowNewTaskModal] = useState(false);
   const [newTaskOp, setNewTaskOp] = useState({ description: '', assignee: '', tag: '', dueDate: '', dueTime: '', priority: '', status: 'À faire', estimatedDuration: 0, interlocuteur: '', urgent: false });
@@ -1355,9 +1360,9 @@ export default function ProjectForm({ project, onSave, onSilentSave, onCancel, c
     <div className="space-y-6 fi pb-20">
       {readOnly && (
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
-          <span className="text-lg" title="Consultation uniquement">🔒</span>
+          <span className="text-lg" title="Consultation seule">🔒</span>
           <span className="text-[11px] font-bold">
-            Consultation uniquement (Propriété de : {ownerDisplayName})
+            {isArchivedProject ? 'Consultation seule — projet archivé. Aucune modification possible.' : `Consultation uniquement (Propriété de : ${ownerDisplayName})`}
           </span>
         </div>
       )}
@@ -1765,7 +1770,7 @@ export default function ProjectForm({ project, onSave, onSilentSave, onCancel, c
         </div>
       )}
       {tab === 'planning' && <PlanningTab form={form} upd={upd} />}
-      {tab === 'tasks' && <TasksTab form={form} upd={upd} project={project} tasks={tasks} todayStr={todayStr} config={config} setShowNewTaskModal={setShowNewTaskModal} showNewTaskModal={showNewTaskModal} newTaskOp={newTaskOp} setNewTaskOp={setNewTaskOp} taskFilter={taskFilter} setTaskFilter={setTaskFilter} readOnly={readOnly} managerAgentIds={managerAgentIds} currentUid={currentUid} managerAgentLabels={managerAgentLabels} />}
+      {tab === 'tasks' && <TasksTab form={form} upd={upd} project={project} tasks={tasks} todayStr={todayStr} config={config} setShowNewTaskModal={setShowNewTaskModal} showNewTaskModal={showNewTaskModal} newTaskOp={newTaskOp} setNewTaskOp={setNewTaskOp} taskFilter={taskFilter} setTaskFilter={setTaskFilter} readOnly={readOnly} showAllTasks={isArchivedProject} managerAgentIds={managerAgentIds} currentUid={currentUid} managerAgentLabels={managerAgentLabels} />}
       {tab === 'finances' && <FinancesTab form={form} upd={upd} spent={spent} ratio={ratio} budget={budget} fmtAmt={fmtAmt2Dec} fmtDate={fmtDate} />}
       {tab === 'intervenants' && <IntervenantsTab form={form} upd={upd} config={config} />}
     </div>

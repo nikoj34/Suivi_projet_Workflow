@@ -257,7 +257,7 @@ export default function ProjectList({
                       <h4
                         onClick={() => onEdit(p)}
                         className="text-base font-black text-slate-800 cursor-pointer hover:text-[#007A78] transition-colors break-words min-w-0"
-                        title="Cliquer pour modifier l'opération"
+                        title={isArchive ? 'Cliquer pour consulter (lecture seule)' : 'Cliquer pour modifier l\'opération'}
                       >
                         {p.title || 'Sans titre'}
                       </h4>
@@ -387,14 +387,24 @@ export default function ProjectList({
                     </>
                   )}
                   {isArchive && (
-                    <button
-                      type="button"
-                      onClick={() => onRestore(p.id)}
-                      className="p-1.5 bg-white rounded-lg text-slate-400 hover:text-[#007A78] transition-all shadow-sm border border-slate-100"
-                      title="Restaurer"
-                    >
-                      <ic.Rst s={12} />
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => onEdit(p)}
+                        className="p-1.5 bg-white rounded-lg text-slate-400 hover:text-[#007A78] transition-all shadow-sm border border-slate-100"
+                        title="Consulter"
+                      >
+                        <ic.Ed s={12} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => onRestore(p.id)}
+                        className="p-1.5 bg-white rounded-lg text-slate-400 hover:text-[#007A78] transition-all shadow-sm border border-slate-100"
+                        title="Restaurer"
+                      >
+                        <ic.Rst s={12} />
+                      </button>
+                    </>
                   )}
                   {isOwner && (
                     <button

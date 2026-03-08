@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { BOARD_COLS, PRIORITIES } from '../lib/constants';
 import { today, isTaskArchived, addTaskLog, fmtDate, getPriority, getColDef } from '../lib/utils';
 import ItemDetailPanel from './ItemDetailPanel';
@@ -152,6 +152,32 @@ export default function TableView({ projects, config, onSilentSave, onEditProjec
     const colDef = getColDef(task.status, task.done);
     const prio = getPriority(task.priority);
     const isLate = task.dueDate && task.dueDate < todayStr && !task.done;
+
+    // Debounce 800 ms pour le champ texte assignee (évite une écriture Firebase à chaque frappe)
+    const [assigneeInput, setAssigneeInput] = useState(task.assignee || '');
+    const assigneeDebounceRef = useRef(null);
+    const assigneeValueRef = useRef(task.assignee || '');
+    useEffect(() => {
+      setAssigneeInput(task.assignee || '');
+      assigneeValueRef.current = task.assignee || '';
+    }, [task.id, task.assignee]);
+    useEffect(() => {
+      return () => {
+        if (assigneeDebounceRef.current) clearTimeout(assigneeDebounceRef.current);
+      };
+    }, []);
+
+    const handleAssigneeChange = (e) => {
+      const v = e.target.value;
+      setAssigneeInput(v);
+      assigneeValueRef.current = v;
+      if (assigneeDebounceRef.current) clearTimeout(assigneeDebounceRef.current);
+      assigneeDebounceRef.current = setTimeout(() => {
+        updateTask(task, { assignee: assigneeValueRef.current });
+        assigneeDebounceRef.current = null;
+      }, 800);
+    };
+
     return (
       <div
         className="grid items-center gap-0 border-b border-slate-100 px-2 min-h-[42px] group hover:bg-slate-50 transition-colors"
@@ -226,8 +252,8 @@ export default function TableView({ projects, config, onSilentSave, onEditProjec
         </div>
         <div className="pr-2">
           <input
-            value={task.assignee || ''}
-            onChange={(e) => updateTask(task, { assignee: e.target.value })}
+            value={assigneeInput}
+            onChange={handleAssigneeChange}
             className="text-[11px] text-slate-600 bg-transparent border-none outline-none w-full font-semibold"
             placeholder="—"
           />
